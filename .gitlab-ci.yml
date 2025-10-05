@@ -66,19 +66,17 @@ test:
     expire_in: 1 week
   coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
 
-# Security Stage
+# Security Check
 security:
   stage: security
-  image: docker:stable
-  services:
-    - docker:stable-dind
-  before_script:
-    - apk add --no-cache nodejs npm
-    - npm install -g snyk
+  image: node:18
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
   script:
-    - snyk auth $SNYK_TOKEN || echo "Snyk auth failed, but continuing..."
-    - snyk test --severity-threshold=high
-    - snyk monitor --org=$SNYK_ORG
+    - npm ci
+    - npm audit --production --audit-level=high
   only:
     - merge_requests
     - main
