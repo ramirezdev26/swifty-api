@@ -32,35 +32,28 @@ cache:
 lint:
   stage: lint
   cache:
-    policy: pull-push       # first job pushes cache for others
-  # IMPORTANT: eslint/prettier should already be in devDependencies; don't install with --save-dev here
+    policy: pull-push
   script:
     - npm ci --prefer-offline --no-audit --no-fund
     - npx eslint --ext .js,.jsx,.ts,.tsx . --max-warnings=0
     - npx prettier -c .
-  # no node_modules artifacts!
-  # If you need a report, publish only the report file, not node_modules.
-  # artifacts:
-  #   reports:
-  #     codequality: gl-code-quality-report.json
 
 # Build Stage
 build:
   stage: build
-  needs: []                 # run in parallel with lint
-  dependencies: []          # <-- prevents "Downloading artifacts for lint ..."
+  needs: []
+  dependencies: []
   cache:
     policy: pull
   script:
     - npm ci --only=production --prefer-offline --no-audit --no-fund
-    - npm run build
-  # no node_modules artifacts
+    - npm run start
 
 # Test Stage
 test:
   stage: test
-  needs: []                 # (optional) let it start when its turn comes
-  dependencies: []          # don't pull build artifacts
+  needs: []
+  dependencies: []
   cache:
     policy: pull
   script:

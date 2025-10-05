@@ -11,7 +11,8 @@
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "prepare": "[ -n \"$CI\" ] || husky install",
     "test": "jest --coverage",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "build": "npm run lint && npm test"
   },
   "keywords": [
     "api",
