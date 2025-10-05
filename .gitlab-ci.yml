@@ -158,7 +158,6 @@ deploy_production:
   script:
     - echo "Deploying to production environment"
     - echo "Would deploy $DOCKER_IMAGE here"
-    - echo "Change note: $CHANGE_NOTE"
   only:
     - main
   when: manual
