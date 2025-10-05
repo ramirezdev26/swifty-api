@@ -14,4 +14,5 @@ package-lock.json
 .env
 .env.*
 .eslintrc.js
-
+*.md
+.gitlab-ci.yml
