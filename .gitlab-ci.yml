@@ -39,11 +39,17 @@ lint:
 build:
   stage: build
   script:
-    - npm ci --only=production
-  artifacts:
+    - npm ci --only=production --prefer-offline --no-audit
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-prod
     paths:
       - node_modules/
+    policy: pull-push
+  artifacts:
+    paths:
+      - node_modules/.production
     expire_in: 1 hour
+    when: on_success
 
 # Test Stage
 test:
