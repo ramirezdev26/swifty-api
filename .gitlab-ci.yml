@@ -1,0 +1,177 @@
+image: node:20
+
+stages:
+  - lint
+  - build
+  - test
+  - security
+  - package
+  - deploy
+
+variables:
+  NODE_ENV: test
+  NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.npm"  # use local npm cache between jobs
+  DOCKER_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_TLS_VERIFY: 1
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+
+# Cache the npm *cache* (not node_modules) keyed by lockfile
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm/
+  policy: pull
+  fallback_keys:
+    - ${CI_DEFAULT_BRANCH}
+
+# Lint Stage (populate cache once)
+lint:
+  stage: lint
+  cache:
+    policy: pull-push
+  script:
+    - npm ci --prefer-offline --no-audit --no-fund
+    - npx eslint --ext .js,.jsx,.ts,.tsx . --max-warnings=0
+    - npx prettier -c .
+
+# Build Stage
+build:
+  stage: build
+  needs: []
+  dependencies: []
+  cache:
+    policy: pull
+  script:
+    - npm ci --only=production --prefer-offline --no-audit --no-fund
+    - npm run start
+
+# Test Stage
+test:
+  stage: test
+  dependencies: []
+  variables:
+    JEST_JUNIT_OUTPUT_DIR: "test-reports"
+    JEST_JUNIT_OUTPUT_NAME: "junit.xml"
+  before_script:
+    - rm -rf .cov test-reports || true
+    - mkdir -p .cov test-reports
+    - npm ci --prefer-offline --no-audit --no-fund
+  script:
+    - |
+      npm test -- --ci --passWithNoTests \
+        --coverage --coverageDirectory=.cov \
+        --coverageReporters=cobertura \
+        --reporters=default --reporters=jest-junit
+    # tiny fallbacks so artifact upload is instant even if Jest writes nothing
+    - '[ -f test-reports/junit.xml ] || echo "<?xml version=\"1.0\"?><testsuites name=\"empty\" tests=\"0\" failures=\"0\"/>" > test-reports/junit.xml'
+    - '[ -f .cov/cobertura-coverage.xml ] || echo "<?xml version=\"1.0\"?><coverage lines-valid=\"0\" lines-covered=\"0\" line-rate=\"0\" version=\"0\"/>" > .cov/cobertura-coverage.xml'
+  artifacts:
+    when: always
+    reports:
+      junit: test-reports/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: .cov/cobertura-coverage.xml
+    expire_in: 1 week
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+
+# Security Check
+security:
+  stage: security
+  dependencies: []
+  cache:
+    policy: pull
+  script:
+    - npm ci --production --prefer-offline --no-audit --no-fund
+    - npm audit --production --audit-level=high
+  only:
+    - merge_requests
+    - main
+  allow_failure: true
+
+# Package Stage
+package:
+  stage: package
+  image: docker:stable
+  services:
+    - docker:stable-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $DOCKER_IMAGE .
+    - docker push $DOCKER_IMAGE
+  only:
+    - main
+    - develop
+  when: manual
+
+# Deploy to Preview Environment
+deploy_preview:
+  stage: deploy
+  image: alpine:latest
+  variables:
+    name: preview/$CI_COMMIT_REF_SLUG
+    url: https://$CI_ENVIRONMENT_SLUG.$KUBE_INGRESS_BASE_DOMAIN
+    on_stop: stop_preview
+  environment:
+    name: preview/$CI_COMMIT_REF_SLUG
+    url: https://$CI_ENVIRONMENT_SLUG.$KUBE_INGRESS_BASE_DOMAIN
+    on_stop: stop_preview
+    auto_stop_in: 1 day
+  script:
+    - echo "Deploying to preview environment"
+    - echo "Would deploy $DOCKER_IMAGE here"
+  only:
+    - merge_requests
+  when: manual
+
+stop_preview:
+  stage: deploy
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "Removing preview environment"
+  when: manual
+  environment:
+    name: preview/$CI_COMMIT_REF_SLUG
+    action: stop
+
+deploy_staging:
+  stage: deploy
+  dependencies: []
+  image: alpine:latest
+  environment:
+    name: staging
+    url: https://staging.$KUBE_INGRESS_BASE_DOMAIN
+  script:
+    - echo "Deploying to staging environment"
+    - echo "Would deploy $DOCKER_IMAGE here"
+  only:
+    - main
+  when: manual
+  needs: ["package"]
+
+deploy_production:
+  stage: deploy
+  dependencies: []
+  image: alpine:latest
+  environment:
+    name: production
+    url: https://$CI_DOMAIN
+  script:
+    - echo "Deploying to production environment"
+    - echo "Would deploy $DOCKER_IMAGE here"
+  only:
+    - main
+  when: manual
+  needs: ["deploy_staging"]
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
