@@ -7,9 +7,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "lint": "eslint . --ext .js",
-    "lint:fix": "eslint . --ext .js --fix",
-    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "lint": "eslint . --ext .js --config .eslintrc.cjs",
+    "lint:fix": "eslint . --ext .js --fix --config .eslintrc.cjs",
+    "format": "prettier --write \"**/*.{js,json,md,cjs}\"",
     "prepare": "[ -n \"$CI\" ] || husky install",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch"
