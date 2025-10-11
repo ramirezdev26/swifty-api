@@ -2,6 +2,8 @@ import express from 'express';
 import pino from 'pino';
 import dotenv from 'dotenv';
 import router from './presentation/routes/api.routes.js';
+import errorMiddleware from './presentation/middleware/error.middleware.js';
+import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
 
 dotenv.config();
 
@@ -33,14 +35,15 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use('/api', router);
 
-app.use((err, res) => {
-  logger.error(err);
-  res.status(err.status || 500).json({
-    status: 'error',
-    message: err.message || 'Internal Server Error',
-  });
-});
+app.use(errorMiddleware);
 
-app.listen(PORT, () => {
-  logger.info(`Server is running on port ${PORT}`);
-});
+initializeDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      logger.info(`Server is running on port ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    logger.error('Failed to initialize database:', error);
+    process.exit(1);
+  });
