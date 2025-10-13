@@ -20,4 +20,11 @@ export class UserRepository extends IUserRepository {
       throw error;
     }
   }
+
+  async findByEmail(email) {
+    const user = await UserModel.findOne({
+      where: { email: email.toLowerCase() },
+    });
+    return user ? UserMapper.toEntity(user) : null;
+  }
 }
