@@ -1,4 +1,6 @@
 import sequelize from '../config/database.js';
+import './models/user.model.js';
+import './models/image.model.js';
 
 async function testConnection() {
   try {

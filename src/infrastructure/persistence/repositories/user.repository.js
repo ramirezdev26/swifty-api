@@ -27,4 +27,11 @@ export class UserRepository extends IUserRepository {
     });
     return user ? UserMapper.toEntity(user) : null;
   }
+
+  async findByFirebaseUid(firebase_uid) {
+    const user = await UserModel.findOne({
+      where: { firebase_uid },
+    });
+    return user ? UserMapper.toEntity(user) : null;
+  }
 }
