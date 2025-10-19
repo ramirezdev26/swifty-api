@@ -16,3 +16,4 @@ package-lock.json
 .eslintrc.js
 *.md
 .gitlab-ci.yml
+docker-compose.yml

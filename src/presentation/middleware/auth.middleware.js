@@ -4,6 +4,11 @@ import { AppError } from '../../shared/errors/app.error.js';
 export class AuthMiddleware {
   static async verifyToken(req, res, next) {
     try {
+      // Check if Firebase auth is available
+      if (!auth) {
+        return next(new AppError('Authentication service not available', 503));
+      }
+
       const token = AuthMiddleware.extractToken(req);
 
       const decodedToken = await auth.verifyIdToken(token);
