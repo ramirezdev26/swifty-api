@@ -39,7 +39,6 @@ async function retryConnection(maxRetries = 10, initialDelay = 1000) {
 }
 
 export async function initializeDatabase(maxRetries = null) {
-  // Use environment variables if available, otherwise use defaults
   const retries = maxRetries || parseInt(process.env.DB_CONNECTION_RETRIES) || 10;
   const timeout = parseInt(process.env.DB_CONNECTION_TIMEOUT) || 5000;
 
@@ -48,7 +47,6 @@ export async function initializeDatabase(maxRetries = null) {
     console.log(`Max retries: ${retries}, Connection timeout: ${timeout}ms`);
     await retryConnection(retries, 1000);
 
-    console.log('Syncing database tables...');
     await syncDatabase();
 
     console.log('Database initialized successfully.');

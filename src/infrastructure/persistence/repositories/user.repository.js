@@ -1,5 +1,5 @@
 import { ConflictError } from '../../../shared/errors/index.js';
-import { UserModel } from '../models/user.model.js';
+import { UserModel } from '../models/index.js';
 import { IUserRepository } from '../../../application/interfaces/iuser.repository.js';
 import { UserMapper } from '../../../application/mappers/user.mapper.js';
 
@@ -24,6 +24,13 @@ export class UserRepository extends IUserRepository {
   async findByEmail(email) {
     const user = await UserModel.findOne({
       where: { email: email.toLowerCase() },
+    });
+    return user ? UserMapper.toEntity(user) : null;
+  }
+
+  async findByFirebaseUid(firebase_uid) {
+    const user = await UserModel.findOne({
+      where: { firebase_uid },
     });
     return user ? UserMapper.toEntity(user) : null;
   }

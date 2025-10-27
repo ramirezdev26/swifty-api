@@ -15,8 +15,8 @@ version_init:
   script:
     - |
       if [ ! -f $VERSION_FILE ]; then
-        echo "1.0.0" > $VERSION_FILE
-        echo "Initialized version to 1.0.0"
+        echo "0.1.0" > $VERSION_FILE
+        echo "Initialized version to 0.1.0"
       fi
   artifacts:
     paths:
@@ -41,8 +41,8 @@ version_patch:
         echo $NEW_VERSION > $VERSION_FILE
         echo "Bumped version from $CURRENT_VERSION to $NEW_VERSION"
       else
-        echo "1.0.0" > $VERSION_FILE
-        echo "Initialized version to 1.0.0"
+        echo "0.1.0" > $VERSION_FILE
+        echo "Initialized version to 0.1.0"
       fi
   artifacts:
     paths:
@@ -67,8 +67,8 @@ version_minor:
         echo $NEW_VERSION > $VERSION_FILE
         echo "Bumped version from $CURRENT_VERSION to $NEW_VERSION"
       else
-        echo "1.0.0" > $VERSION_FILE
-        echo "Initialized version to 1.0.0"
+        echo "0.1.0" > $VERSION_FILE
+        echo "Initialized version to 0.1.0"
       fi
   artifacts:
     paths:
@@ -93,8 +93,8 @@ version_major:
         echo $NEW_VERSION > $VERSION_FILE
         echo "Bumped version from $CURRENT_VERSION to $NEW_VERSION"
       else
-        echo "1.0.0" > $VERSION_FILE
-        echo "Initialized version to 1.0.0"
+        echo "0.1.0" > $VERSION_FILE
+        echo "Initialized version to 0.1.0"
       fi
   artifacts:
     paths:
