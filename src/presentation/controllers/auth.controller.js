@@ -10,9 +10,12 @@ export class AuthController {
 
   async register(req, res, next) {
     try {
-      const { email, full_name } = req.body;
+      const { email, full_name, firebase_uid } = req.body;
 
-      const firebaseUser = req.user;
+      const firebaseUser = {
+        email,
+        firebase_uid,
+      };
 
       const createUserDto = CreateUserDTO.fromRequest({ email, full_name }, firebaseUser);
       const user = await this.registerUserUseCase.execute(createUserDto);

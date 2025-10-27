@@ -1,4 +1,4 @@
-import { ImageModel } from '../models/image.model.js';
+import { ImageModel } from '../models/index.js';
 import { IImageRepository } from '../../../application/interfaces/iimage.repository.js';
 import { ImageMapper } from '../../../application/mappers/image.mapper.js';
 import { NotFoundError } from '../../../shared/errors/index.js';

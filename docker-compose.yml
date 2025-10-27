@@ -1,0 +1,78 @@
+services:
+  swifty-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      # Application Configuration
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${PORT:-3000}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4200}
+      - API_PREFIX=${API_PREFIX:-/api}
+
+      # Database Configuration (GitLab CI/CD variables or local defaults)
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USERNAME=${DB_USERNAME:-swifty_user}
+      - DB_PASSWORD=${DB_PASSWORD:-swifty_password}
+      - DB_NAME=${DB_NAME:-swifty_db}
+
+      # Firebase Configuration (GitLab CI/CD variables or demo values)
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-demo-project}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY:-demo-key}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL:-demo@demo.com}
+      - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL:-https://demo.firebaseio.com}
+      - FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET:-demo.appspot.com}
+
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      # Database connection settings
+      - DB_CONNECTION_RETRIES=${DB_CONNECTION_RETRIES:-15}
+      - DB_CONNECTION_TIMEOUT=${DB_CONNECTION_TIMEOUT:-5000}
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+    networks:
+      - swifty-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: swifty-postgres
+    environment:
+      - POSTGRES_DB=${DB_NAME:-swifty_db}
+      - POSTGRES_USER=${DB_USERNAME:-swifty_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-swifty_password}
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all -c max_connections=200
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - swifty-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swifty_user -d swifty_db -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+
+networks:
+  swifty-network:
+    driver: bridge

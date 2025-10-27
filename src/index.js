@@ -27,10 +27,38 @@ const logger = pino({
 
 const app = express();
 
+// CORS configuration
 const corsOptions = {
-  origin: process.env.FRONTEND_URL,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      'http://localhost:4200', // Angular dev server
+      'http://127.0.0.1:4200', // Alternative localhost
+      'http://localhost:3000', // For potential other services
+      'http://127.0.0.1:3000',
+    ].filter(Boolean); // Remove undefined values
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // In development, allow all localhost origins
+    if (
+      isDevelopment &&
+      (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS policy violation: ${origin} not allowed`));
+  },
   credentials: true,
   optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 
 app.use(cors(corsOptions));

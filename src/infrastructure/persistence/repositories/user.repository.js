@@ -1,5 +1,5 @@
 import { ConflictError } from '../../../shared/errors/index.js';
-import { UserModel } from '../models/user.model.js';
+import { UserModel } from '../models/index.js';
 import { IUserRepository } from '../../../application/interfaces/iuser.repository.js';
 import { UserMapper } from '../../../application/mappers/user.mapper.js';
 
