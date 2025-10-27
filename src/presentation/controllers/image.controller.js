@@ -6,7 +6,7 @@ import { UserRepository } from '../../infrastructure/persistence/repositories/us
 const imageRepository = new ImageRepository();
 const userRepository = new UserRepository();
 const processImageUseCase = new ProcessImageUseCase(imageRepository, userRepository);
-const getProcessedImagesUseCase = new GetProcessedImagesUseCase(imageRepository);
+const getProcessedImagesUseCase = new GetProcessedImagesUseCase(imageRepository, userRepository);
 
 export const processImage = async (req, res, next) => {
   try {
@@ -31,14 +31,7 @@ export const getProcessedImages = async (req, res, next) => {
     const firebase_uid = req.user.firebase_uid;
     const { page = 1, limit = 12 } = req.query;
 
-    const user = await userRepository.findByFirebaseUid(firebase_uid);
-    if (!user) {
-      return res.status(404).json({
-        message: 'User not found',
-      });
-    }
-
-    const result = await getProcessedImagesUseCase.execute(user.uid, page, limit);
+    const result = await getProcessedImagesUseCase.execute(firebase_uid, page, limit);
 
     res.status(200).json(result);
   } catch (error) {
