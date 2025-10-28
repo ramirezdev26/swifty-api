@@ -1,5 +1,4 @@
 import { ImageMapper } from '../../mappers/image.mapper.js';
-import { NotFoundError } from '../../../shared/errors/not-found.error.js';
 
 export class GetProcessedImagesUseCase {
   constructor(imageRepository, userRepository) {
@@ -7,39 +6,29 @@ export class GetProcessedImagesUseCase {
     this.userRepository = userRepository;
   }
 
-  async execute(firebase_uid, page = 1, limit = 12) {
-    if (!firebase_uid || firebase_uid.trim() === '') {
-      throw new Error('Firebase UID is required');
-    }
-
+  async execute(page = 1, limit = 12) {
     const normalizedPage = Math.max(1, parseInt(page) || 1);
     const normalizedLimit = Math.max(1, Math.min(100, parseInt(limit) || 12));
 
     try {
-      const user = await this.userRepository.findByFirebaseUid(firebase_uid);
-      if (!user) {
-        throw new NotFoundError('User');
-      }
-
       const { images, totalCount } = await this.imageRepository.findByUserIdWithPagination(
-        user.uid,
         normalizedPage,
         normalizedLimit,
         'processed'
       );
-
-      const authorName = user.full_name;
-
-      const processedImages = images.map((image) => {
-        const dto = ImageMapper.toResponseDTO(image);
-        return {
-          id: dto.imageId,
-          author: authorName,
-          style: dto.style,
-          processedUrl: dto.processedUrl,
-          processedAt: dto.processedAt,
-        };
-      });
+      const processedImages = await Promise.all(
+        images.map(async (image) => {
+          const dto = ImageMapper.toResponseDTO(image);
+          const user = await this.userRepository.findById(image.user_id);
+          return {
+            id: dto.imageId,
+            author: user.full_name,
+            style: dto.style,
+            processedUrl: dto.processedUrl,
+            processedAt: dto.processedAt,
+          };
+        })
+      );
 
       const totalPages = Math.ceil(totalCount / normalizedLimit);
       const pagination = {

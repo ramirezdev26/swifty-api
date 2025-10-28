@@ -28,10 +28,9 @@ export const processImage = async (req, res, next) => {
 
 export const getProcessedImages = async (req, res, next) => {
   try {
-    const firebase_uid = req.user.firebase_uid;
     const { page = 1, limit = 12 } = req.query;
 
-    const result = await getProcessedImagesUseCase.execute(firebase_uid, page, limit);
+    const result = await getProcessedImagesUseCase.execute(page, limit);
 
     res.status(200).json(result);
   } catch (error) {

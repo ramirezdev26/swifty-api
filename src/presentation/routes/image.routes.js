@@ -20,9 +20,14 @@ const upload = multer({
   },
 });
 
-router.use(AuthMiddleware.verifyToken);
+router.post(
+  '/process',
+  AuthMiddleware.verifyToken,
+  upload.single('image'),
+  validateProcessImageInput,
+  processImage
+);
 
-router.post('/process', upload.single('image'), validateProcessImageInput, processImage);
 router.get('/', validateGetProcessedImagesInput, getProcessedImages);
 
 export default router;

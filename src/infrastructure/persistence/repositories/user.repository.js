@@ -34,4 +34,8 @@ export class UserRepository extends IUserRepository {
     });
     return user ? UserMapper.toEntity(user) : null;
   }
+  async findById(id) {
+    const user = await UserModel.findByPk(id);
+    return user ? UserMapper.toEntity(user) : null;
+  }
 }

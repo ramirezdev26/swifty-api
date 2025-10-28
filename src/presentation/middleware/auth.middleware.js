@@ -1,5 +1,5 @@
 import { auth } from '../../infrastructure/config/firebase.config.js';
-import { AppError } from '../../shared/errors/app.error.js';
+import { AppError } from '../../shared/errors/index.js';
 
 export class AuthMiddleware {
   static async verifyToken(req, res, next) {
