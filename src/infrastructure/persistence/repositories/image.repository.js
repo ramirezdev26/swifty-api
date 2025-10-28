@@ -45,4 +45,25 @@ export class ImageRepository extends IImageRepository {
 
     return images.map((image) => ImageMapper.toEntity(image));
   }
+
+  async findByUserIdWithPagination(userId, page = 1, limit = 12, status = 'processed') {
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await ImageModel.findAndCountAll({
+      where: {
+        user_id: userId,
+        status: status,
+      },
+      order: [['createdAt', 'DESC']],
+      limit: limit,
+      offset: offset,
+    });
+
+    const images = rows.map((image) => ImageMapper.toEntity(image));
+
+    return {
+      images,
+      totalCount: count,
+    };
+  }
 }
