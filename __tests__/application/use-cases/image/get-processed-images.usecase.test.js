@@ -1,306 +1,302 @@
-import { jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { GetProcessedImagesUseCase } from '../../../../src/application/use-cases/image/get-processed-images.usecase.js';
-import { Image } from '../../../../src/domain/entities/image.entity.js';
 
 describe('GetProcessedImagesUseCase', () => {
-  let useCase;
+  let getProcessedImagesUseCase;
   let mockImageRepository;
   let mockUserRepository;
 
-  const mockUserId = 'user-123';
-  const mockFirebaseUid = 'firebase-123';
-  const mockImages = [
-    new Image({
-      id: 'image-1',
-      user_id: mockUserId,
-      cloudinary_id: 'cloudinary-1',
-      size: 1024000,
-      style: 'oil-painting',
-      status: 'processed',
-      processed_url: 'https://cloudinary.com/processed-1.jpg',
-      processing_time: 1500,
-      processed_at: new Date('2025-01-13T15:30:00Z'),
-      created_at: new Date('2025-01-13T15:28:00Z'),
-      updated_at: new Date('2025-01-13T15:30:00Z'),
-    }),
-    new Image({
-      id: 'image-2',
-      user_id: mockUserId,
-      cloudinary_id: 'cloudinary-2',
-      size: 2048000,
-      style: 'cartoon',
-      status: 'processed',
-      processed_url: 'https://cloudinary.com/processed-2.jpg',
-      processing_time: 2000,
-      processed_at: new Date('2025-01-13T14:20:00Z'),
-      created_at: new Date('2025-01-13T14:18:00Z'),
-      updated_at: new Date('2025-01-13T14:20:00Z'),
-    }),
-  ];
-
   beforeEach(() => {
+    // Reset all mocks before each test
+    jest.clearAllMocks();
+
+    // Create mock repositories
     mockImageRepository = {
       findByUserIdWithPagination: jest.fn(),
     };
 
     mockUserRepository = {
-      findByFirebaseUid: jest.fn(),
+      findById: jest.fn(),
     };
 
-    useCase = new GetProcessedImagesUseCase(mockImageRepository, mockUserRepository);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+    // Create use case instance with mocked dependencies
+    getProcessedImagesUseCase = new GetProcessedImagesUseCase(
+      mockImageRepository,
+      mockUserRepository
+    );
   });
 
   describe('execute', () => {
-    it('should return paginated processed images successfully with default parameters', async () => {
-      const mockRepositoryResponse = {
+    it('should return processed images successfully with default pagination', async () => {
+      // Arrange
+      const mockImages = [
+        {
+          id: 'image-1',
+          user_id: 'user-1',
+          size: 1024,
+          style: 'oil-painting',
+          status: 'processed',
+          processed_url: 'https://cloudinary.com/processed1.jpg',
+          processed_at: new Date('2024-01-01T10:00:00Z'),
+        },
+        {
+          id: 'image-2',
+          user_id: 'user-2',
+          size: 2048,
+          style: 'cartoon',
+          status: 'processed',
+          processed_url: 'https://cloudinary.com/processed2.jpg',
+          processed_at: new Date('2024-01-02T11:00:00Z'),
+        },
+      ];
+
+      const mockUsers = [
+        { uid: 'user-1', full_name: 'John Doe' },
+        { uid: 'user-2', full_name: 'Jane Smith' },
+      ];
+
+      const mockResponse = {
         images: mockImages,
-        totalCount: 34,
+        totalCount: 2,
       };
 
-      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockRepositoryResponse);
-      mockUserRepository.findByFirebaseUid.mockResolvedValue({
-        uid: mockUserId,
-        full_name: 'Juancho',
-      });
+      // Mock repository responses
+      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockResponse);
+      mockUserRepository.findById
+        .mockResolvedValueOnce(mockUsers[0])
+        .mockResolvedValueOnce(mockUsers[1]);
 
-      const result = await useCase.execute(mockFirebaseUid);
+      // Act
+      const result = await getProcessedImagesUseCase.execute();
 
+      // Assert
       expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        1,
-        12,
+        1, // default page
+        12, // default limit
         'processed'
       );
+      expect(mockUserRepository.findById).toHaveBeenCalledTimes(2);
+      expect(mockUserRepository.findById).toHaveBeenCalledWith('user-1');
+      expect(mockUserRepository.findById).toHaveBeenCalledWith('user-2');
 
       expect(result.message).toBe('data successfully retrieved');
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toEqual({
         id: 'image-1',
-        author: 'Juancho',
+        author: 'John Doe',
         style: 'oil-painting',
-        processedUrl: 'https://cloudinary.com/processed-1.jpg',
-        processedAt: new Date('2025-01-13T15:30:00Z'),
+        processedUrl: 'https://cloudinary.com/processed1.jpg',
+        processedAt: new Date('2024-01-01T10:00:00Z'),
+      });
+      expect(result.data[1]).toEqual({
+        id: 'image-2',
+        author: 'Jane Smith',
+        style: 'cartoon',
+        processedUrl: 'https://cloudinary.com/processed2.jpg',
+        processedAt: new Date('2024-01-02T11:00:00Z'),
       });
       expect(result.pagination).toEqual({
         currentPage: 1,
-        totalPages: 3,
-        totalItems: 34,
+        totalPages: 1,
+        totalItems: 2,
         itemsPerPage: 12,
-        hasNextPage: true,
+        hasNextPage: false,
         hasPreviousPage: false,
       });
     });
 
-    it('should return paginated processed images with custom page and limit', async () => {
-      const mockRepositoryResponse = {
-        images: [mockImages[0]],
-        totalCount: 34,
+    it('should return processed images with custom pagination parameters', async () => {
+      // Arrange
+      const mockImages = [
+        {
+          id: 'image-1',
+          user_id: 'user-1',
+          size: 1024,
+          style: 'pixel-art',
+          status: 'processed',
+          processed_url: 'https://cloudinary.com/processed1.jpg',
+          processed_at: new Date('2024-01-01T10:00:00Z'),
+        },
+      ];
+
+      const mockResponse = {
+        images: mockImages,
+        totalCount: 25, // Total items to test pagination
       };
 
-      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockRepositoryResponse);
-      mockUserRepository.findByFirebaseUid.mockResolvedValue({
-        uid: mockUserId,
-        full_name: 'Juancho',
-      });
+      const mockUser = { uid: 'user-1', full_name: 'John Doe' };
 
-      const result = await useCase.execute(mockFirebaseUid, 2, 5);
+      // Mock repository responses
+      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockResponse);
+      mockUserRepository.findById.mockResolvedValue(mockUser);
 
+      // Act
+      const result = await getProcessedImagesUseCase.execute(2, 5);
+
+      // Assert
       expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        2,
-        5,
+        2, // page 2
+        5, // limit 5
         'processed'
       );
 
       expect(result.pagination).toEqual({
         currentPage: 2,
-        totalPages: 7,
-        totalItems: 34,
+        totalPages: 5, // 25 items / 5 per page = 5 pages
+        totalItems: 25,
         itemsPerPage: 5,
         hasNextPage: true,
         hasPreviousPage: true,
       });
     });
 
-    it('should return empty list when no processed images found', async () => {
-      const mockRepositoryResponse = {
+    it('should normalize invalid pagination parameters', async () => {
+      // Arrange
+      const mockResponse = {
         images: [],
         totalCount: 0,
       };
 
-      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockRepositoryResponse);
-      mockUserRepository.findByFirebaseUid.mockResolvedValue({
-        uid: mockUserId,
-        full_name: 'Juancho',
-      });
+      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockResponse);
 
-      const result = await useCase.execute(mockFirebaseUid);
+      // Act
+      await getProcessedImagesUseCase.execute(-5, 150); // Invalid values
 
+      // Assert
       expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        1,
-        12,
+        1, // normalized to 1 (minimum)
+        100, // normalized to 100 (maximum)
         'processed'
       );
+    });
 
-      expect(result.data).toHaveLength(0);
-      expect(result.pagination).toEqual({
-        currentPage: 1,
-        totalPages: 0,
-        totalItems: 0,
-        itemsPerPage: 12,
-        hasNextPage: false,
-        hasPreviousPage: false,
+    it('should handle string pagination parameters', async () => {
+      // Arrange
+      const mockResponse = {
+        images: [],
+        totalCount: 0,
+      };
+
+      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockResponse);
+
+      // Act
+      await getProcessedImagesUseCase.execute('3', '8');
+
+      // Assert
+      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
+        3, // parsed from string
+        8, // parsed from string
+        'processed'
+      );
+    });
+
+    it('should return empty result when no images found', async () => {
+      // Arrange
+      const mockResponse = {
+        images: [],
+        totalCount: 0,
+      };
+
+      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockResponse);
+
+      // Act
+      const result = await getProcessedImagesUseCase.execute();
+
+      // Assert
+      expect(result).toEqual({
+        message: 'data successfully retrieved',
+        data: [],
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: 12,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       });
     });
 
-    it('should handle last page correctly', async () => {
-      const mockRepositoryResponse = {
-        images: [mockImages[0]],
-        totalCount: 25,
+    it('should throw error when image repository fails', async () => {
+      // Arrange
+      const errorMessage = 'Database connection failed';
+      mockImageRepository.findByUserIdWithPagination.mockRejectedValue(new Error(errorMessage));
+
+      // Act & Assert
+      await expect(getProcessedImagesUseCase.execute()).rejects.toThrow(
+        `Failed to retrieve processed images: ${errorMessage}`
+      );
+    });
+
+    it('should throw error when user repository fails', async () => {
+      // Arrange
+      const mockImages = [
+        {
+          id: 'image-1',
+          user_id: 'user-1',
+          size: 1024,
+          style: 'oil-painting',
+          status: 'processed',
+          processed_url: 'https://cloudinary.com/processed1.jpg',
+          processed_at: new Date('2024-01-01T10:00:00Z'),
+        },
+      ];
+
+      const mockResponse = {
+        images: mockImages,
+        totalCount: 1,
       };
 
-      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockRepositoryResponse);
-      mockUserRepository.findByFirebaseUid.mockResolvedValue({
-        uid: mockUserId,
-        full_name: 'Juancho',
-      });
+      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockResponse);
+      mockUserRepository.findById.mockRejectedValue(new Error('User not found'));
 
-      const result = await useCase.execute(mockFirebaseUid, 3, 12);
+      // Act & Assert
+      await expect(getProcessedImagesUseCase.execute()).rejects.toThrow(
+        'Failed to retrieve processed images: User not found'
+      );
+    });
 
+    it('should handle null/undefined pagination parameters', async () => {
+      // Arrange
+      const mockResponse = {
+        images: [],
+        totalCount: 0,
+      };
+
+      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockResponse);
+
+      // Act
+      await getProcessedImagesUseCase.execute(null, undefined);
+
+      // Assert
+      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
+        1, // default page
+        12, // default limit
+        'processed'
+      );
+    });
+
+    it('should calculate pagination correctly for multiple pages', async () => {
+      // Arrange
+      const mockResponse = {
+        images: [],
+        totalCount: 47, // 47 items with 12 per page = 4 pages (last page has 11 items)
+      };
+
+      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockResponse);
+
+      // Act
+      const result = await getProcessedImagesUseCase.execute(3, 12);
+
+      // Assert
       expect(result.pagination).toEqual({
         currentPage: 3,
-        totalPages: 3,
-        totalItems: 25,
+        totalPages: 4, // Math.ceil(47/12) = 4
+        totalItems: 47,
         itemsPerPage: 12,
-        hasNextPage: false,
-        hasPreviousPage: true,
+        hasNextPage: true, // page 3 of 4 has next page
+        hasPreviousPage: true, // page 3 has previous pages
       });
-    });
-
-    it('should validate and normalize page parameter', async () => {
-      const mockRepositoryResponse = {
-        images: mockImages,
-        totalCount: 34,
-      };
-
-      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockRepositoryResponse);
-      mockUserRepository.findByFirebaseUid.mockResolvedValue({
-        uid: mockUserId,
-        full_name: 'Juancho',
-      });
-
-      await useCase.execute(mockFirebaseUid, '2', 12);
-      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        2,
-        12,
-        'processed'
-      );
-
-      await useCase.execute(mockFirebaseUid, -1, 12);
-      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        1,
-        12,
-        'processed'
-      );
-
-      await useCase.execute(mockFirebaseUid, 0, 12);
-      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        1,
-        12,
-        'processed'
-      );
-    });
-
-    it('should validate and normalize limit parameter', async () => {
-      const mockRepositoryResponse = {
-        images: mockImages,
-        totalCount: 34,
-      };
-
-      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockRepositoryResponse);
-      mockUserRepository.findByFirebaseUid.mockResolvedValue({
-        uid: mockUserId,
-        full_name: 'Juancho',
-      });
-
-      await useCase.execute(mockFirebaseUid, 1, '5');
-      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        1,
-        5,
-        'processed'
-      );
-
-      await useCase.execute(mockFirebaseUid, 1, 150);
-      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        1,
-        100,
-        'processed'
-      );
-
-      await useCase.execute(mockFirebaseUid, 1, -5);
-      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        1,
-        1,
-        'processed'
-      );
-    });
-
-    it('should throw error when firebase_uid is not provided', async () => {
-      await expect(useCase.execute(null)).rejects.toThrow('Firebase UID is required');
-      await expect(useCase.execute(undefined)).rejects.toThrow('Firebase UID is required');
-      await expect(useCase.execute('')).rejects.toThrow('Firebase UID is required');
-
-      expect(mockUserRepository.findByFirebaseUid).not.toHaveBeenCalled();
-      expect(mockImageRepository.findByUserIdWithPagination).not.toHaveBeenCalled();
-    });
-
-    it('should handle repository errors gracefully', async () => {
-      const repositoryError = new Error('Database connection failed');
-      mockImageRepository.findByUserIdWithPagination.mockRejectedValue(repositoryError);
-      mockUserRepository.findByFirebaseUid.mockResolvedValue({
-        uid: mockUserId,
-        full_name: 'Juancho',
-      });
-
-      await expect(useCase.execute(mockFirebaseUid)).rejects.toThrow(
-        'Failed to retrieve processed images: Database connection failed'
-      );
-
-      expect(mockImageRepository.findByUserIdWithPagination).toHaveBeenCalledWith(
-        mockUserId,
-        1,
-        12,
-        'processed'
-      );
-    });
-
-    it('should include author full_name in response items', async () => {
-      const mockRepositoryResponse = {
-        images: mockImages,
-        totalCount: 2,
-      };
-
-      mockImageRepository.findByUserIdWithPagination.mockResolvedValue(mockRepositoryResponse);
-      mockUserRepository.findByFirebaseUid.mockResolvedValue({
-        uid: mockUserId,
-        full_name: 'Juancho',
-      });
-
-      const result = await useCase.execute(mockFirebaseUid);
-
-      expect(result.data[0].author).toBe('Juancho');
-      expect(result.data[1].author).toBe('Juancho');
     });
   });
 });
