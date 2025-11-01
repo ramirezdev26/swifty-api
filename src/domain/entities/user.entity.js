@@ -1,5 +1,5 @@
 import { Email } from '../value-objects/email.vo.js';
-import { ValidationError } from '../../shared/errors/validation.error.js';
+import { ValidationError } from '../../shared/errors/index.js';
 
 export class User {
   constructor({ email, firebase_uid, full_name = null, uid = null }) {

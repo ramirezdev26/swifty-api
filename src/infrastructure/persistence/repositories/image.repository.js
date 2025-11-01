@@ -1,4 +1,4 @@
-import { ImageModel } from '../models/image.model.js';
+import { ImageModel } from '../models/index.js';
 import { IImageRepository } from '../../../application/interfaces/iimage.repository.js';
 import { ImageMapper } from '../../../application/mappers/image.mapper.js';
 import { NotFoundError } from '../../../shared/errors/index.js';
@@ -45,5 +45,25 @@ export class ImageRepository extends IImageRepository {
     });
 
     return images.map((image) => ImageMapper.toEntity(image));
+  }
+
+  async findByUserIdWithPagination(page = 1, limit = 12, status = 'processed') {
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await ImageModel.findAndCountAll({
+      where: {
+        status: status,
+      },
+      order: [['createdAt', 'DESC']],
+      limit: limit,
+      offset: offset,
+    });
+
+    const images = rows.map((image) => ImageMapper.toEntity(image));
+
+    return {
+      images,
+      totalCount: count,
+    };
   }
 }
