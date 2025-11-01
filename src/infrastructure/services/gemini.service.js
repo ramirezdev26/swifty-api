@@ -1,3 +1,10 @@
+// ========================================================================
+// THIS SERVICE HAS BEEN MOVED TO swifty-ai-digester MICROSERVICE
+// Gemini image processing is now handled by the AI digester service
+// which consumes 'image_processing' queue and publishes to 'status_updates'
+// ========================================================================
+
+/*
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config/env.js';
 
@@ -120,3 +127,4 @@ class GeminiService {
 }
 
 export default new GeminiService();
+*/

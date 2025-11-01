@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import router from './presentation/routes/api.routes.js';
 import errorMiddleware from './presentation/middleware/error.middleware.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
+import rabbitmqService from './infrastructure/services/rabbitmq.service.js';
+import imageResultConsumer from './infrastructure/consumers/image-result.consumer.js';
 
 dotenv.config();
 
@@ -75,12 +77,31 @@ app.use('/api', router);
 app.use(errorMiddleware);
 
 initializeDatabase()
-  .then(() => {
+  .then(async () => {
+    // Initialize RabbitMQ connection
+    await rabbitmqService.connect();
+
+    // Start consuming status updates
+    await imageResultConsumer.start();
+
     app.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`);
     });
   })
   .catch((error) => {
-    logger.error('Failed to initialize database:', error);
+    logger.error('Failed to initialize application:', error);
     process.exit(1);
   });
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  await rabbitmqService.close();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  await rabbitmqService.close();
+  process.exit(0);
+});

@@ -8,6 +8,7 @@ export class Image {
     size,
     style,
     status = 'processing',
+    original_url = null,
     processed_url = null,
     processing_time = null,
     processed_at = null,
@@ -20,6 +21,7 @@ export class Image {
     this._size = size;
     this._style = this.validateStyle(style);
     this._status = this.validateStatus(status);
+    this._original_url = original_url;
     this._processed_url = processed_url;
     this._processing_time = processing_time;
     this._processed_at = processed_at;
@@ -65,6 +67,10 @@ export class Image {
 
   get status() {
     return this._status;
+  }
+
+  get original_url() {
+    return this._original_url;
   }
 
   get processed_url() {

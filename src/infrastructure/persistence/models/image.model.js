@@ -41,6 +41,10 @@ ImageModel.init(
         isIn: [['processing', 'processed', 'failed']],
       },
     },
+    original_url: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     processed_url: {
       type: DataTypes.TEXT,
       allowNull: true,

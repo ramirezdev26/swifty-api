@@ -11,6 +11,7 @@ export class ImageRepository extends IImageRepository {
       size: image.size,
       style: image.style,
       status: image.status,
+      original_url: image.original_url,
       processed_url: image.processed_url,
       processing_time: image.processing_time,
       processed_at: image.processed_at,

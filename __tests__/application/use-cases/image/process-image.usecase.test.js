@@ -1,19 +1,19 @@
 import { jest } from '@jest/globals';
 
-const mockGeminiService = {
-  processImage: jest.fn(),
-};
-
 const mockCloudinaryService = {
   uploadImage: jest.fn(),
 };
 
-jest.unstable_mockModule('../../../../src/infrastructure/services/gemini.service.js', () => ({
-  default: mockGeminiService,
-}));
+const mockRabbitMQService = {
+  publishImageUploaded: jest.fn(),
+};
 
 jest.unstable_mockModule('../../../../src/infrastructure/services/cloudinary.service.js', () => ({
   default: mockCloudinaryService,
+}));
+
+jest.unstable_mockModule('../../../../src/infrastructure/services/rabbitmq.service.js', () => ({
+  default: mockRabbitMQService,
 }));
 
 const { ProcessImageUseCase } = await import(
@@ -36,7 +36,6 @@ describe('ProcessImageUseCase', () => {
   });
 
   const mockImageBuffer = Buffer.from('fake-image-data');
-  const mockProcessedBuffer = Buffer.from('processed-image-data');
   const mockFirebaseUid = 'firebase123';
   const mockStyle = 'cartoon';
   const mockFileSize = 1024000;
@@ -44,8 +43,8 @@ describe('ProcessImageUseCase', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    mockGeminiService.processImage.mockReset();
     mockCloudinaryService.uploadImage.mockReset();
+    mockRabbitMQService.publishImageUploaded.mockReset();
 
     mockImageRepository = {
       create: jest.fn(),
@@ -67,24 +66,14 @@ describe('ProcessImageUseCase', () => {
         size: mockFileSize,
         style: mockStyle,
         status: 'processing',
-      });
-
-      const mockUpdatedImage = new Image({
-        id: 'image-id-123',
-        user_id: mockUser.uid,
-        size: mockFileSize,
-        style: mockStyle,
-        status: 'processed',
-        cloudinary_id: 'cloudinary-id-123',
-        processed_url: 'https://res.cloudinary.com/test/processed-image.jpg',
-        processing_time: 1500,
-        processed_at: new Date(),
+        original_url: 'https://res.cloudinary.com/test/original-image.jpg',
+        cloudinary_id: 'original_123456789',
       });
 
       const mockCloudinaryResult = {
-        public_id: 'processed_image-id-123_123456789',
-        secure_url: 'https://res.cloudinary.com/test/processed-image.jpg',
-        url: 'http://res.cloudinary.com/test/processed-image.jpg',
+        public_id: 'original_123456789',
+        secure_url: 'https://res.cloudinary.com/test/original-image.jpg',
+        url: 'http://res.cloudinary.com/test/original-image.jpg',
         bytes: 500000,
         format: 'jpg',
         width: 1024,
@@ -92,10 +81,9 @@ describe('ProcessImageUseCase', () => {
       };
 
       mockUserRepository.findByFirebaseUid.mockResolvedValue(mockUser);
-      mockImageRepository.create.mockResolvedValue(mockSavedImage);
-      mockGeminiService.processImage.mockResolvedValue(mockProcessedBuffer);
       mockCloudinaryService.uploadImage.mockResolvedValue(mockCloudinaryResult);
-      mockImageRepository.update.mockResolvedValue(mockUpdatedImage);
+      mockImageRepository.create.mockResolvedValue(mockSavedImage);
+      mockRabbitMQService.publishImageUploaded.mockResolvedValue();
 
       const result = await useCase.execute(
         mockFirebaseUid,
@@ -105,30 +93,25 @@ describe('ProcessImageUseCase', () => {
       );
 
       expect(mockUserRepository.findByFirebaseUid).toHaveBeenCalledWith(mockFirebaseUid);
-      expect(mockImageRepository.create).toHaveBeenCalledWith(expect.any(Image));
-      expect(mockGeminiService.processImage).toHaveBeenCalledWith(mockImageBuffer, mockStyle);
       expect(mockCloudinaryService.uploadImage).toHaveBeenCalledWith(
-        mockProcessedBuffer,
+        mockImageBuffer,
         expect.objectContaining({
-          public_id: expect.stringContaining('processed_image-id-123_'),
+          public_id: expect.stringContaining('original_'),
+          folder: 'swifty-original-images',
         })
       );
-      expect(mockImageRepository.update).toHaveBeenCalledWith(
-        mockSavedImage.id,
-        expect.objectContaining({
-          cloudinary_id: mockCloudinaryResult.public_id,
-          processed_url: mockCloudinaryResult.secure_url,
-          processing_time: expect.any(Number),
-          status: 'processed',
-          processed_at: expect.any(Date),
-        })
-      );
+      expect(mockImageRepository.create).toHaveBeenCalledWith(expect.any(Image));
+      expect(mockRabbitMQService.publishImageUploaded).toHaveBeenCalledWith({
+        imageId: mockSavedImage.id,
+        userId: mockUser.uid,
+        originalImageUrl: mockCloudinaryResult.secure_url,
+        style: mockStyle,
+      });
 
       expect(result).toEqual({
-        imageId: mockUpdatedImage.id,
-        processedUrl: mockUpdatedImage.processed_url,
-        style: mockUpdatedImage.style,
-        processedAt: mockUpdatedImage.processed_at,
+        imageId: mockSavedImage.id,
+        status: 'processing',
+        message: 'Image is being processed',
       });
     });
 
@@ -140,71 +123,41 @@ describe('ProcessImageUseCase', () => {
       ).rejects.toThrow(NotFoundError);
 
       expect(mockUserRepository.findByFirebaseUid).toHaveBeenCalledWith(mockFirebaseUid);
+      expect(mockCloudinaryService.uploadImage).not.toHaveBeenCalled();
       expect(mockImageRepository.create).not.toHaveBeenCalled();
     });
 
-    it('should update image status to failed when gemini processing fails', async () => {
-      const mockSavedImage = new Image({
-        id: 'image-id-123',
-        user_id: mockUser.uid,
-        size: mockFileSize,
-        style: mockStyle,
-        status: 'processing',
-      });
-
-      const processingError = new Error('Gemini processing failed');
-
-      mockUserRepository.findByFirebaseUid.mockResolvedValue(mockUser);
-      mockImageRepository.create.mockResolvedValue(mockSavedImage);
-      mockGeminiService.processImage.mockRejectedValue(processingError);
-
-      await expect(
-        useCase.execute(mockFirebaseUid, mockImageBuffer, mockStyle, mockFileSize)
-      ).rejects.toThrow(processingError);
-
-      expect(mockImageRepository.update).toHaveBeenCalledWith(mockSavedImage.id, {
-        status: 'failed',
-      });
-      expect(mockCloudinaryService.uploadImage).not.toHaveBeenCalled();
-    });
-
-    it('should update image status to failed when cloudinary upload fails', async () => {
-      const mockSavedImage = new Image({
-        id: 'image-id-123',
-        user_id: mockUser.uid,
-        size: mockFileSize,
-        style: mockStyle,
-        status: 'processing',
-      });
-
+    it('should throw error when cloudinary upload fails', async () => {
       const uploadError = new Error('Cloudinary upload failed');
 
       mockUserRepository.findByFirebaseUid.mockResolvedValue(mockUser);
-      mockImageRepository.create.mockResolvedValue(mockSavedImage);
-      mockGeminiService.processImage.mockResolvedValue(mockProcessedBuffer);
       mockCloudinaryService.uploadImage.mockRejectedValue(uploadError);
 
       await expect(
         useCase.execute(mockFirebaseUid, mockImageBuffer, mockStyle, mockFileSize)
       ).rejects.toThrow(uploadError);
 
-      expect(mockImageRepository.update).toHaveBeenCalledWith(mockSavedImage.id, {
-        status: 'failed',
-      });
+      expect(mockImageRepository.create).not.toHaveBeenCalled();
+      expect(mockRabbitMQService.publishImageUploaded).not.toHaveBeenCalled();
     });
 
     it('should propagate repository errors during image creation', async () => {
       const repositoryError = new Error('Database connection failed');
 
+      const mockCloudinaryResult = {
+        public_id: 'original_123456789',
+        secure_url: 'https://res.cloudinary.com/test/original-image.jpg',
+      };
+
       mockUserRepository.findByFirebaseUid.mockResolvedValue(mockUser);
+      mockCloudinaryService.uploadImage.mockResolvedValue(mockCloudinaryResult);
       mockImageRepository.create.mockRejectedValue(repositoryError);
 
       await expect(
         useCase.execute(mockFirebaseUid, mockImageBuffer, mockStyle, mockFileSize)
       ).rejects.toThrow(repositoryError);
 
-      expect(mockGeminiService.processImage).not.toHaveBeenCalled();
-      expect(mockCloudinaryService.uploadImage).not.toHaveBeenCalled();
+      expect(mockRabbitMQService.publishImageUploaded).not.toHaveBeenCalled();
     });
 
     it('should propagate user repository errors', async () => {
@@ -216,6 +169,7 @@ describe('ProcessImageUseCase', () => {
         useCase.execute(mockFirebaseUid, mockImageBuffer, mockStyle, mockFileSize)
       ).rejects.toThrow(userRepositoryError);
 
+      expect(mockCloudinaryService.uploadImage).not.toHaveBeenCalled();
       expect(mockImageRepository.create).not.toHaveBeenCalled();
     });
   });
