@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { processImage, getProcessedImages } from '../controllers/image.controller.js';
+import {
+  processImage,
+  getProcessedImages,
+  getUserImages,
+} from '../controllers/image.controller.js';
 import {
   validateProcessImageInput,
   validateGetProcessedImagesInput,
@@ -29,5 +33,7 @@ router.post(
 );
 
 router.get('/', validateGetProcessedImagesInput, getProcessedImages);
+
+router.get('/users/me', AuthMiddleware.verifyToken, getUserImages);
 
 export default router;
