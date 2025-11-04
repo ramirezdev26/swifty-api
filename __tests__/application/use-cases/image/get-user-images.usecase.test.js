@@ -113,14 +113,14 @@ describe('GetUserImagesUseCase', () => {
       mockUserRepository.findByFirebaseUid.mockResolvedValue(mockUser);
       mockImageRepository.findUserImagesWithPagination.mockResolvedValue(mockRepositoryResponse);
 
-      const result = await useCase.execute(mockFirebaseUid, 2, 5, 'processed_at', 'asc');
+      const result = await useCase.execute(mockFirebaseUid, 2, 5, 'processed_at');
 
       expect(mockImageRepository.findUserImagesWithPagination).toHaveBeenCalledWith(
         mockUserId,
         2,
         5,
         'processed_at',
-        'asc',
+        'desc',
         null,
         null
       );
@@ -136,6 +136,50 @@ describe('GetUserImagesUseCase', () => {
       });
     });
 
+    it('should handle sortBy newest (maps to processed_at DESC)', async () => {
+      const mockRepositoryResponse = {
+        images: [mockImages[0]],
+        totalCount: 2,
+      };
+
+      mockUserRepository.findByFirebaseUid.mockResolvedValue(mockUser);
+      mockImageRepository.findUserImagesWithPagination.mockResolvedValue(mockRepositoryResponse);
+
+      await useCase.execute(mockFirebaseUid, 1, 12, 'newest');
+
+      expect(mockImageRepository.findUserImagesWithPagination).toHaveBeenCalledWith(
+        mockUserId,
+        1,
+        12,
+        'processed_at',
+        'desc',
+        null,
+        null
+      );
+    });
+
+    it('should handle sortBy oldest (maps to processed_at ASC)', async () => {
+      const mockRepositoryResponse = {
+        images: [mockImages[0]],
+        totalCount: 2,
+      };
+
+      mockUserRepository.findByFirebaseUid.mockResolvedValue(mockUser);
+      mockImageRepository.findUserImagesWithPagination.mockResolvedValue(mockRepositoryResponse);
+
+      await useCase.execute(mockFirebaseUid, 1, 12, 'oldest');
+
+      expect(mockImageRepository.findUserImagesWithPagination).toHaveBeenCalledWith(
+        mockUserId,
+        1,
+        12,
+        'processed_at',
+        'asc',
+        null,
+        null
+      );
+    });
+
     it('should return user images with style filter', async () => {
       const mockRepositoryResponse = {
         images: [mockImages[0]],
@@ -145,21 +189,13 @@ describe('GetUserImagesUseCase', () => {
       mockUserRepository.findByFirebaseUid.mockResolvedValue(mockUser);
       mockImageRepository.findUserImagesWithPagination.mockResolvedValue(mockRepositoryResponse);
 
-      const result = await useCase.execute(
-        mockFirebaseUid,
-        1,
-        12,
-        'created_at',
-        'desc',
-        null,
-        'oil-painting'
-      );
+      const result = await useCase.execute(mockFirebaseUid, 1, 12, 'newest', null, 'oil-painting');
 
       expect(mockImageRepository.findUserImagesWithPagination).toHaveBeenCalledWith(
         mockUserId,
         1,
         12,
-        'created_at',
+        'processed_at',
         'desc',
         null,
         'oil-painting'
@@ -180,13 +216,13 @@ describe('GetUserImagesUseCase', () => {
       mockImageRepository.findUserImagesWithPagination.mockResolvedValue(mockRepositoryResponse);
 
       const projectId = 'project-123';
-      await useCase.execute(mockFirebaseUid, 1, 12, 'created_at', 'desc', projectId, null);
+      await useCase.execute(mockFirebaseUid, 1, 12, 'newest', projectId, null);
 
       expect(mockImageRepository.findUserImagesWithPagination).toHaveBeenCalledWith(
         mockUserId,
         1,
         12,
-        'created_at',
+        'processed_at',
         'desc',
         projectId,
         null
@@ -204,14 +240,14 @@ describe('GetUserImagesUseCase', () => {
 
       const projectId = 'project-123';
       const style = 'cartoon';
-      await useCase.execute(mockFirebaseUid, 1, 12, 'style', 'asc', projectId, style);
+      await useCase.execute(mockFirebaseUid, 1, 12, 'newest', projectId, style);
 
       expect(mockImageRepository.findUserImagesWithPagination).toHaveBeenCalledWith(
         mockUserId,
         1,
         12,
-        'style',
-        'asc',
+        'processed_at',
+        'desc',
         projectId,
         style
       );

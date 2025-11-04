@@ -42,14 +42,7 @@ export const getProcessedImages = async (req, res, next) => {
 
 export const getUserImages = async (req, res, next) => {
   try {
-    const {
-      page = 1,
-      limit = 12,
-      sortBy = 'created_at',
-      order = 'desc',
-      projectId,
-      style,
-    } = req.query;
+    const { page = 1, limit = 12, sortBy = 'created_at', projectId, style } = req.query;
     const firebase_uid = req.user.firebase_uid;
 
     const result = await getUserImagesUseCase.execute(
@@ -57,7 +50,6 @@ export const getUserImages = async (req, res, next) => {
       page,
       limit,
       sortBy,
-      order,
       projectId,
       style
     );

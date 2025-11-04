@@ -12,7 +12,6 @@ export class GetUserImagesUseCase {
     page = 1,
     limit = 12,
     sortBy = 'created_at',
-    order = 'desc',
     projectId = null,
     style = null
   ) {
@@ -23,12 +22,19 @@ export class GetUserImagesUseCase {
 
       const normalizedPage = Math.max(1, parseInt(page) || 1);
       const normalizedLimit = Math.min(100, Math.max(1, parseInt(limit) || 12));
-      const normalizedSortBy = ['created_at', 'processed_at', 'style'].includes(sortBy)
-        ? sortBy
-        : 'created_at';
-      const normalizedOrder = ['asc', 'desc'].includes(order?.toLowerCase())
-        ? order.toLowerCase()
-        : 'desc';
+      const sortByStr = typeof sortBy === 'string' ? sortBy.toLowerCase() : 'created_at';
+      let normalizedSortBy;
+      let normalizedOrder;
+
+      if (['newest', 'oldest'].includes(sortByStr)) {
+        normalizedSortBy = 'processed_at';
+        normalizedOrder = sortByStr === 'newest' ? 'desc' : 'asc';
+      } else {
+        normalizedSortBy = ['created_at', 'processed_at', 'style'].includes(sortBy)
+          ? sortBy
+          : 'created_at';
+        normalizedOrder = 'desc';
+      }
 
       const user = await this.userRepository.findByFirebaseUid(firebase_uid);
       if (!user) {
