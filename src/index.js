@@ -7,11 +7,14 @@ import errorMiddleware from './presentation/middleware/error.middleware.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
 import rabbitmqService from './infrastructure/services/rabbitmq.service.js';
 import imageResultConsumer from './infrastructure/consumers/image-result.consumer.js';
+import { setupDependencies } from './infrastructure/config/dependencies.js';
+import { setProcessImageHandler } from './presentation/controllers/image.controller.js';
+import { setRegisterUserHandler } from './presentation/controllers/auth.controller.js';
 
 dotenv.config();
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
@@ -53,11 +56,23 @@ initializeDatabase()
     // Initialize RabbitMQ connection
     await rabbitmqService.connect();
 
+    // Setup dependencies and command handlers
+    const { eventPublisher, processImageHandler, registerUserHandler } = await setupDependencies();
+
+    // Initialize Event Publisher
+    await eventPublisher.init();
+
+    // Set handlers in controllers
+    setProcessImageHandler(processImageHandler);
+    setRegisterUserHandler(registerUserHandler);
+
     // Start consuming status updates
     await imageResultConsumer.start();
 
+    logger.info('[Command Service] Ready');
+
     app.listen(PORT, () => {
-      logger.info(`Server is running on port ${PORT}`);
+      logger.info(`[Command Service] Running on port ${PORT}`);
     });
   })
   .catch((error) => {
