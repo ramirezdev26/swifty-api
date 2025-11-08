@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { processImage } from '../controllers/image.controller.js';
-import { validateProcessImageInput } from '../validators/image.validator.js';
+import { processImage, getProcessedImages } from '../controllers/image.controller.js';
+import {
+  validateProcessImageInput,
+  validateGetProcessedImagesInput,
+} from '../validators/image.validator.js';
 import AuthMiddleware from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -17,8 +20,14 @@ const upload = multer({
   },
 });
 
-router.use(AuthMiddleware.verifyToken);
+router.post(
+  '/process',
+  AuthMiddleware.verifyToken,
+  upload.single('image'),
+  validateProcessImageInput,
+  processImage
+);
 
-router.post('/process', upload.single('image'), validateProcessImageInput, processImage);
+router.get('/', validateGetProcessedImagesInput, getProcessedImages);
 
 export default router;

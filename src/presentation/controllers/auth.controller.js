@@ -9,10 +9,9 @@ export function setRegisterUserHandler(handler) {
 export class AuthController {
   async register(req, res, next) {
     try {
-      const { email, full_name } = req.body;
-      const firebaseUser = req.user;
+      const { email, full_name, firebase_uid } = req.body;
 
-      const command = new RegisterUserCommand(email, full_name, firebaseUser.uid);
+      const command = new RegisterUserCommand(email, full_name, firebase_uid);
       const user = await registerUserHandler.execute(command);
 
       res.status(201).json({

@@ -19,4 +19,11 @@ export class IImageRepository {
     this._userId = userId;
     throw new Error('Method not implemented');
   }
+
+  async findByUserIdWithPagination(page, limit, status = 'processed') {
+    this._page = page;
+    this._limit = limit;
+    this._status = status;
+    throw new Error('Method not implemented');
+  }
 }
