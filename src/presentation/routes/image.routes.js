@@ -4,10 +4,13 @@ import {
   processImage,
   getProcessedImages,
   getUserImages,
+  updateImageVisibility,
 } from '../controllers/image.controller.js';
 import {
   validateProcessImageInput,
   validateGetProcessedImagesInput,
+  validateUpdateImageVisibilityInput,
+  validateImageIdParam,
 } from '../validators/image.validator.js';
 import AuthMiddleware from '../middleware/auth.middleware.js';
 
@@ -35,5 +38,13 @@ router.post(
 router.get('/', validateGetProcessedImagesInput, getProcessedImages);
 
 router.get('/users/me', AuthMiddleware.verifyToken, getUserImages);
+
+router.patch(
+  '/:id/visibility',
+  AuthMiddleware.verifyToken,
+  validateImageIdParam,
+  validateUpdateImageVisibilityInput,
+  updateImageVisibility
+);
 
 export default router;
