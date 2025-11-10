@@ -1,10 +1,18 @@
 export class UserImageResponseDTO {
-  constructor({ id, processed_url, style, project_name = null, processed_at }) {
+  constructor({
+    id,
+    processed_url,
+    style,
+    project_name = null,
+    processed_at,
+    visibility = 'public',
+  }) {
     this.id = id;
     this.processed_url = processed_url;
     this.style = style;
     this.project_name = project_name;
     this.processed_at = processed_at;
+    this.visibility = visibility;
   }
 
   toJSON() {
@@ -14,6 +22,7 @@ export class UserImageResponseDTO {
       style: this.style,
       project_name: this.project_name,
       processed_at: this.processed_at,
+      visibility: this.visibility,
     };
   }
 }

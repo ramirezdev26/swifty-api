@@ -41,6 +41,14 @@ ImageModel.init(
         isIn: [['processing', 'processed', 'failed']],
       },
     },
+    visibility: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: 'public',
+      validate: {
+        isIn: [['public', 'private']],
+      },
+    },
     processed_url: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -66,6 +74,9 @@ ImageModel.init(
       },
       {
         fields: ['status'],
+      },
+      {
+        fields: ['visibility'],
       },
     ],
   }
