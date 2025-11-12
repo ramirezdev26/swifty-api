@@ -59,6 +59,7 @@ export class GetUserImagesUseCase {
             style: image.style,
             project_name: null, // project_name - will be null until we implement projects
             processed_at: image.processed_at,
+            visibility: image.visibility,
           })
       );
 

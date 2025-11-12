@@ -11,6 +11,7 @@ export class ImageRepository extends IImageRepository {
       size: image.size,
       style: image.style,
       status: image.status,
+      visibility: image.visibility,
       processed_url: image.processed_url,
       processing_time: image.processing_time,
       processed_at: image.processed_at,
@@ -52,6 +53,7 @@ export class ImageRepository extends IImageRepository {
     const { count, rows } = await ImageModel.findAndCountAll({
       where: {
         status: status,
+        visibility: 'public',
       },
       order: [['createdAt', 'DESC']],
       limit: limit,

@@ -93,6 +93,7 @@ describe('GetUserImagesUseCase', () => {
         style: 'oil-painting',
         project_name: null,
         processed_at: new Date('2025-01-13T15:30:00Z'),
+        visibility: 'public',
       });
       expect(response.pagination).toEqual({
         currentPage: 1,
