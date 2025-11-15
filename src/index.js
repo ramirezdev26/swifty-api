@@ -2,9 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import pino from 'pino';
 import dotenv from 'dotenv';
+import http from 'http';
 import router from './presentation/routes/api.routes.js';
 import errorMiddleware from './presentation/middleware/error.middleware.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
+import { initSocketServer } from './infrastructure/services/socket.service.js';
 
 dotenv.config();
 
@@ -26,6 +28,7 @@ const logger = pino({
 });
 
 const app = express();
+const httpServer = http.createServer(app);
 
 // CORS configuration
 const corsOptions = {
@@ -76,8 +79,11 @@ app.use(errorMiddleware);
 
 initializeDatabase()
   .then(() => {
-    app.listen(PORT, () => {
+    // Initialize WebSocket server on same HTTP server
+    initSocketServer(httpServer);
+    httpServer.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`);
+      logger.info(`WebSocket server path available at /ws`);
     });
   })
   .catch((error) => {
