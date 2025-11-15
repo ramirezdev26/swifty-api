@@ -1,4 +1,4 @@
-import { NotFoundError, AppError } from '../../../shared/errors/index.js';
+import { NotFoundError, ForbiddenError, AppError } from '../../../shared/errors/index.js';
 
 export class UpdateImageVisibilityUseCase {
   constructor(imageRepository, userRepository) {
@@ -19,7 +19,7 @@ export class UpdateImageVisibilityUseCase {
       }
 
       if (image.user_id !== user.uid) {
-        throw new AppError('Forbidden: You do not own this image', 403);
+        throw new ForbiddenError('Forbidden: You do not own this image');
       }
 
       const updated = await this.imageRepository.update(imageId, { visibility });
