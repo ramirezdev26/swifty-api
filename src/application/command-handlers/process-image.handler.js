@@ -1,6 +1,7 @@
 import { ImageUploadedEvent } from '../../domain/events/image-uploaded.event.js';
 import { Image } from '../../domain/entities/image.entity.js';
 import { NotFoundError } from '../../shared/errors/index.js';
+import rabbitmqService from '../../infrastructure/services/rabbitmq.service.js';
 
 export class ProcessImageHandler {
   constructor(
@@ -50,8 +51,16 @@ export class ProcessImageHandler {
         uploadResult.secure_url,
         command.style,
         command.fileSize,
-        user.email
+        user.email,
+        user.full_name
       );
+
+      await rabbitmqService.publishImageUploaded({
+        imageId: savedImage.id,
+        userId: user.uid,
+        originalImageUrl: uploadResult.secure_url,
+        style: command.style,
+      });
 
       // 5. Persistir evento en Event Store
       await this.eventStoreRepository.append(event);

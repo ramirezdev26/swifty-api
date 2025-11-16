@@ -4,6 +4,7 @@ import { EventStoreRepository } from '../persistence/repositories/event-store.re
 import { ProcessImageHandler } from '../../application/command-handlers/process-image.handler.js';
 import { RegisterUserHandler } from '../../application/command-handlers/register-user.handler.js';
 import { EventPublisher } from '../messaging/event-publisher.service.js';
+import { ImageResultConsumer } from '../consumers/image-result.consumer.js';
 import cloudinaryService from '../services/cloudinary.service.js';
 import rabbitmqService from '../services/rabbitmq.service.js';
 
@@ -45,6 +46,12 @@ export async function setupDependencies() {
     eventPublisher
   );
 
+  const imageResultConsumer = new ImageResultConsumer(
+    imageRepository,
+    eventStoreRepository,
+    eventPublisher
+  );
+
   return {
     imageRepository,
     userRepository,
@@ -52,5 +59,6 @@ export async function setupDependencies() {
     eventPublisher,
     processImageHandler,
     registerUserHandler,
+    imageResultConsumer,
   };
 }

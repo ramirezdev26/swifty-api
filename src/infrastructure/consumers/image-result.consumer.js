@@ -1,10 +1,13 @@
 import rabbitmqService from '../services/rabbitmq.service.js';
-import { ImageRepository } from '../persistence/repositories/image.repository.js';
+import { ImageProcessedEvent } from '../../domain/events/image-processed.event.js';
+import { ProcessingFailedEvent } from '../../domain/events/processing-failed.event.js';
 
-class ImageResultConsumer {
-  constructor() {
-    this.imageRepository = new ImageRepository();
+export class ImageResultConsumer {
+  constructor(imageRepository, eventStoreRepository, eventPublisher) {
+    this.imageRepository = imageRepository;
     this.isConsuming = false;
+    this.eventStoreRepository = eventStoreRepository;
+    this.eventPublisher = eventPublisher;
   }
 
   async start() {
@@ -45,11 +48,28 @@ class ImageResultConsumer {
         processing_time: payload.processingTime,
         processed_at: new Date(),
       });
+      const event = new ImageProcessedEvent(
+        payload.imageId,
+        payload.userId,
+        payload.processedUrl,
+        payload.processingTime
+      );
+      // 5. Persistir evento en Event Store
+      await this.eventStoreRepository.append(event);
+
+      // 6. Publicar evento a RabbitMQ
+      await this.eventPublisher.publish(event);
       console.log(`Updated image ${payload.imageId} status to processed`);
     } else if (eventType === 'ProcessingError') {
       await this.imageRepository.update(payload.imageId, {
         status: 'failed',
       });
+      const event = new ProcessingFailedEvent(payload.imageId, payload.userId, payload.error);
+      // 5. Persistir evento en Event Store
+      await this.eventStoreRepository.append(event);
+
+      // 6. Publicar evento a RabbitMQ
+      await this.eventPublisher.publish(event);
       console.log(`Updated image ${payload.imageId} status to failed`);
     }
   }
@@ -58,5 +78,3 @@ class ImageResultConsumer {
     this.isConsuming = false;
   }
 }
-
-export default new ImageResultConsumer();

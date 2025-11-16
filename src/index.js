@@ -6,7 +6,6 @@ import router from './presentation/routes/api.routes.js';
 import errorMiddleware from './presentation/middleware/error.middleware.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
 import rabbitmqService from './infrastructure/services/rabbitmq.service.js';
-import imageResultConsumer from './infrastructure/consumers/image-result.consumer.js';
 import { setupDependencies } from './infrastructure/config/dependencies.js';
 import { setProcessImageHandler } from './presentation/controllers/image.controller.js';
 import { setRegisterUserHandler } from './presentation/controllers/auth.controller.js';
@@ -85,7 +84,8 @@ initializeDatabase()
     await rabbitmqService.connect();
 
     // Setup dependencies and command handlers
-    const { eventPublisher, processImageHandler, registerUserHandler } = await setupDependencies();
+    const { eventPublisher, processImageHandler, registerUserHandler, imageResultConsumer } =
+      await setupDependencies();
 
     // Initialize Event Publisher
     await eventPublisher.init();
