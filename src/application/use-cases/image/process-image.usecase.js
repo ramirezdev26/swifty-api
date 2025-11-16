@@ -2,6 +2,11 @@ import { Image } from '../../../domain/entities/image.entity.js';
 import { NotFoundError } from '../../../shared/errors/index.js';
 import geminiService from '../../../infrastructure/services/gemini.service.js';
 import cloudinaryService from '../../../infrastructure/services/cloudinary.service.js';
+import {
+  emitImageProcessing,
+  emitImageCompleted,
+  emitImageFailed,
+} from '../../../infrastructure/services/socket.service.js';
 
 export class ProcessImageUseCase {
   constructor(imageRepository, userRepository) {
@@ -27,9 +32,21 @@ export class ProcessImageUseCase {
 
       const savedImage = await this.imageRepository.create(imageEntity);
 
+      emitImageProcessing(user.uid, {
+        imageId: savedImage.id,
+        message: 'Applying AI transformation...',
+      });
+
+      let stage = 'gemini';
       try {
         const processedImageBuffer = await geminiService.processImage(imageBuffer, style);
 
+        emitImageProcessing(user.uid, {
+          imageId: savedImage.id,
+          message: 'Uploading processed image...',
+        });
+
+        stage = 'upload';
         const cloudinaryResult = await cloudinaryService.uploadImage(processedImageBuffer, {
           public_id: `processed_${savedImage.id}_${Date.now()}`,
         });
@@ -44,6 +61,13 @@ export class ProcessImageUseCase {
           processed_at: new Date(),
         });
 
+        emitImageCompleted(user.uid, {
+          imageId: updatedImage.id,
+          processedUrl: updatedImage.processed_url,
+          style: updatedImage.style,
+          processedAt: updatedImage.processed_at,
+        });
+
         return {
           imageId: updatedImage.id,
           processedUrl: updatedImage.processed_url,
@@ -53,6 +77,11 @@ export class ProcessImageUseCase {
       } catch (processingError) {
         await this.imageRepository.update(savedImage.id, {
           status: 'failed',
+        });
+        emitImageFailed(user.uid, {
+          imageId: savedImage.id,
+          error: stage === 'upload' ? 'CLOUDINARY_UPLOAD_ERROR' : 'GEMINI_API_ERROR',
+          message: processingError.message || 'Image processing failed',
         });
         throw processingError;
       }

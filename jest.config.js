@@ -1,5 +1,5 @@
 export default {
-  testEnvironment: 'node', // Especificar solo los tests de register-user.usecase
+  testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
   collectCoverage: true,
   coverageDirectory: 'coverage',
@@ -12,7 +12,6 @@ export default {
     '!**/.gitlab-ci.yml',
     '!jest.config.js',
   ],
-  // Transformar ESM a CommonJS para Jest
-
+  // No necesitamos transformar; usamos ESM nativo en Node/Jest
   transform: {},
 };
