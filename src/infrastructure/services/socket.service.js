@@ -53,10 +53,8 @@ export function initSocketServer(httpServer) {
           allowedOrigins.includes(origin) ||
           origin.startsWith('http://localhost:') ||
           origin.startsWith('http://127.0.0.1:') ||
-          (config.server.localCertificates && (
-            origin.startsWith('https://localhost:') ||
-            origin.startsWith('https://127.0.0.1:')
-          )) ||
+          (config.server.localCertificates &&
+            (origin.startsWith('https://localhost:') || origin.startsWith('https://127.0.0.1:'))) ||
           origin.startsWith('chrome-extension://')
         )
       ) {

@@ -42,7 +42,6 @@ function generateCertificates() {
     console.log(`   Certificate: ${CERT_PATH}`);
     console.log('\nWARNING: These are self-signed certificates for development only!');
     console.log('   Do not use in production environments.');
-
   } catch (error) {
     console.error('Failed to generate certificates:', error.message);
     process.exit(1);

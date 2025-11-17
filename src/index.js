@@ -36,7 +36,8 @@ const app = express();
 function createServer() {
   if (config.server.localCertificates) {
     const sslKeyPath = config.server.sslKeyPath || path.join(process.cwd(), 'certs', 'server.key');
-    const sslCertPath = config.server.sslCertPath || path.join(process.cwd(), 'certs', 'server.crt');
+    const sslCertPath =
+      config.server.sslCertPath || path.join(process.cwd(), 'certs', 'server.crt');
 
     // Check if certificate files exist
     if (!fs.existsSync(sslKeyPath) || !fs.existsSync(sslCertPath)) {
@@ -95,8 +96,12 @@ const corsOptions = {
 
     // In development, allow all localhost origins (both HTTP and HTTPS)
     if (isDevelopment) {
-      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:') ||
-          (config.server.localCertificates && (origin.startsWith('https://localhost:') || origin.startsWith('https://127.0.0.1:')))) {
+      if (
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        (config.server.localCertificates &&
+          (origin.startsWith('https://localhost:') || origin.startsWith('https://127.0.0.1:')))
+      ) {
         return callback(null, true);
       }
     }
