@@ -3,10 +3,14 @@ import cors from 'cors';
 import pino from 'pino';
 import dotenv from 'dotenv';
 import http from 'http';
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
 import router from './presentation/routes/api.routes.js';
 import errorMiddleware from './presentation/middleware/error.middleware.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
 import { initSocketServer } from './infrastructure/services/socket.service.js';
+import { config } from './infrastructure/config/env.js';
 
 dotenv.config();
 
@@ -28,7 +32,39 @@ const logger = pino({
 });
 
 const app = express();
-const httpServer = http.createServer(app);
+
+function createServer() {
+  if (config.server.localCertificates) {
+    const sslKeyPath = config.server.sslKeyPath || path.join(process.cwd(), 'certs', 'server.key');
+    const sslCertPath =
+      config.server.sslCertPath || path.join(process.cwd(), 'certs', 'server.crt');
+
+    // Check if certificate files exist
+    if (!fs.existsSync(sslKeyPath) || !fs.existsSync(sslCertPath)) {
+      logger.error('SSL certificates not found. Please run: npm run generate-certs');
+      logger.error(`Expected key: ${sslKeyPath}`);
+      logger.error(`Expected cert: ${sslCertPath}`);
+      process.exit(1);
+    }
+
+    try {
+      const sslOptions = {
+        key: fs.readFileSync(sslKeyPath),
+        cert: fs.readFileSync(sslCertPath),
+      };
+      logger.info('Creating HTTPS server with local certificates');
+      return https.createServer(sslOptions, app);
+    } catch (error) {
+      logger.error('Failed to create HTTPS server:', error.message);
+      process.exit(1);
+    }
+  } else {
+    logger.info('Creating HTTP server');
+    return http.createServer(app);
+  }
+}
+
+const server = createServer();
 
 // CORS configuration
 const corsOptions = {
@@ -44,16 +80,30 @@ const corsOptions = {
       'http://127.0.0.1:3000',
     ].filter(Boolean); // Remove undefined values
 
+    // Add HTTPS versions of localhost origins when using certificates
+    if (config.server.localCertificates) {
+      allowedOrigins.push(
+        'https://localhost:4200',
+        'https://127.0.0.1:4200',
+        'https://localhost:3000',
+        'https://127.0.0.1:3000'
+      );
+    }
+
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    // In development, allow all localhost origins
-    if (
-      isDevelopment &&
-      (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
-    ) {
-      return callback(null, true);
+    // In development, allow all localhost origins (both HTTP and HTTPS)
+    if (isDevelopment) {
+      if (
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        (config.server.localCertificates &&
+          (origin.startsWith('https://localhost:') || origin.startsWith('https://127.0.0.1:')))
+      ) {
+        return callback(null, true);
+      }
     }
 
     return callback(new Error(`CORS policy violation: ${origin} not allowed`));
@@ -79,11 +129,13 @@ app.use(errorMiddleware);
 
 initializeDatabase()
   .then(() => {
-    // Initialize WebSocket server on same HTTP server
-    initSocketServer(httpServer);
-    httpServer.listen(PORT, () => {
-      logger.info(`Server is running on port ${PORT}`);
-      logger.info(`WebSocket server path available at /ws`);
+    // Initialize WebSocket server on the server (HTTP or HTTPS)
+    initSocketServer(server);
+    server.listen(PORT, () => {
+      const protocol = config.server.localCertificates ? 'HTTPS' : 'HTTP';
+      const wsProtocol = config.server.localCertificates ? 'WSS' : 'WS';
+      logger.info(`${protocol} Server is running on port ${PORT}`);
+      logger.info(`${wsProtocol} WebSocket server path available at /ws`);
     });
   })
   .catch((error) => {

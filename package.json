@@ -12,7 +12,8 @@
     "format": "prettier --write \"**/*.{js,json,md,cjs}\"",
     "prepare": "[ -n \"$CI\" ] || husky install",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
-    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch"
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "generate-certs": "node scripts/generate-certificates.js"
   },
   "keywords": [
     "api",

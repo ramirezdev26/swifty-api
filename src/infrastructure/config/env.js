@@ -9,6 +9,9 @@ export const config = {
     logLevel: process.env.LOG_LEVEL,
     frontendUrl: process.env.FRONTEND_URL,
     apiPrefix: process.env.API_PREFIX,
+    localCertificates: process.env.LOCAL_CERTIFICATES === 'true',
+    sslKeyPath: process.env.SSL_KEY_PATH,
+    sslCertPath: process.env.SSL_CERT_PATH,
   },
   database: {
     host: process.env.DB_HOST,

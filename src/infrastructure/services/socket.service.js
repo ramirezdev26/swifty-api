@@ -31,6 +31,16 @@ export function initSocketServer(httpServer) {
     ...extraOrigins,
   ].filter(Boolean);
 
+  // Add HTTPS origins when using local certificates
+  if (config.server.localCertificates) {
+    allowedOrigins.push(
+      'https://localhost:4200',
+      'https://127.0.0.1:4200',
+      'https://localhost:3000',
+      'https://127.0.0.1:3000'
+    );
+  }
+
   wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
   wss.on('connection', async (ws, req) => {
@@ -42,7 +52,10 @@ export function initSocketServer(httpServer) {
         !(
           allowedOrigins.includes(origin) ||
           origin.startsWith('http://localhost:') ||
-          origin.startsWith('http://127.0.0.1:')
+          origin.startsWith('http://127.0.0.1:') ||
+          (config.server.localCertificates &&
+            (origin.startsWith('https://localhost:') || origin.startsWith('https://127.0.0.1:'))) ||
+          origin.startsWith('chrome-extension://')
         )
       ) {
         logger.warn({ origin }, 'WS close 1008 - Origin not allowed');
