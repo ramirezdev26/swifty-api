@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { processImage } from '../controllers/image.controller.js';
-import { validateProcessImageInput } from '../validators/image.validator.js';
+import { processImage, updateImageVisibility } from '../controllers/image.controller.js';
+import {
+  validateProcessImageInput,
+  validateUpdateImageVisibilityInput,
+  validateImageIdParam,
+} from '../validators/image.validator.js';
 import AuthMiddleware from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -17,7 +21,6 @@ const upload = multer({
   },
 });
 
-// Command endpoints only (write operations)
 router.post(
   '/process',
   AuthMiddleware.verifyToken,
@@ -26,7 +29,12 @@ router.post(
   processImage
 );
 
-// Note: GET endpoints moved to Query Service (swifty-query-api)
-// This Command Service handles only write operations (POST, PATCH, DELETE)
+router.patch(
+  '/:id/visibility',
+  AuthMiddleware.verifyToken,
+  validateImageIdParam,
+  validateUpdateImageVisibilityInput,
+  updateImageVisibility
+);
 
 export default router;

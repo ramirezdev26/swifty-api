@@ -10,7 +10,7 @@ export { sequelize };
 
 export async function syncDatabase() {
   try {
-    await sequelize.sync({ force: false, alter: false });
+    await sequelize.sync({ force: false, alter: true });
   } catch (error) {
     console.error('Error syncing database models:', error);
     throw error;

@@ -12,6 +12,7 @@ export class ImageRepository extends IImageRepository {
       style: image.style,
       status: image.status,
       original_url: image.original_url,
+      visibility: image.visibility,
       processed_url: image.processed_url,
       processing_time: image.processing_time,
       processed_at: image.processed_at,
@@ -45,25 +46,5 @@ export class ImageRepository extends IImageRepository {
     });
 
     return images.map((image) => ImageMapper.toEntity(image));
-  }
-
-  async findByUserIdWithPagination(page = 1, limit = 12, status = 'processed') {
-    const offset = (page - 1) * limit;
-
-    const { count, rows } = await ImageModel.findAndCountAll({
-      where: {
-        status: status,
-      },
-      order: [['createdAt', 'DESC']],
-      limit: limit,
-      offset: offset,
-    });
-
-    const images = rows.map((image) => ImageMapper.toEntity(image));
-
-    return {
-      images,
-      totalCount: count,
-    };
   }
 }

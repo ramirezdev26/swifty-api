@@ -9,6 +9,7 @@ export class Image {
     style,
     status = 'processing',
     original_url = null,
+    visibility = 'public',
     processed_url = null,
     processing_time = null,
     processed_at = null,
@@ -22,6 +23,7 @@ export class Image {
     this._style = this.validateStyle(style);
     this._status = this.validateStatus(status);
     this._original_url = original_url;
+    this._visibility = this.validateVisibility(visibility);
     this._processed_url = processed_url;
     this._processing_time = processing_time;
     this._processed_at = processed_at;
@@ -43,6 +45,14 @@ export class Image {
       throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
     }
     return status;
+  }
+
+  validateVisibility(visibility) {
+    const valid = ['public', 'private'];
+    if (!valid.includes(visibility)) {
+      throw new ValidationError(`Invalid visibility. Must be one of: ${valid.join(', ')}`);
+    }
+    return visibility;
   }
 
   get id() {
@@ -71,6 +81,10 @@ export class Image {
 
   get original_url() {
     return this._original_url;
+  }
+
+  get visibility() {
+    return this._visibility;
   }
 
   get processed_url() {
