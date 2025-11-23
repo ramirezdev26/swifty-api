@@ -23,6 +23,10 @@ ImageModel.init(
       type: DataTypes.STRING(255),
       allowNull: true,
     },
+    original_url: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     size: {
       type: DataTypes.INTEGER,
       allowNull: false,
