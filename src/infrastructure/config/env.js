@@ -35,4 +35,12 @@ export const config = {
   gemini: {
     apiKey: process.env.GEMINI_API_KEY,
   },
+  rabbitmq: {
+    url: process.env.RABBITMQ_URL || 'amqp://localhost:5672',
+    exchange: process.env.RABBITMQ_EXCHANGE || 'pixpro.processing',
+    dlxExchange: process.env.RABBITMQ_DLX_EXCHANGE || 'pixpro.dlx',
+    partitions: parseInt(process.env.RABBITMQ_PARTITIONS || '3', 10),
+    messageTtl: parseInt(process.env.RABBITMQ_MESSAGE_TTL || '300000', 10),
+    dlqTtl: parseInt(process.env.RABBITMQ_DLQ_TTL || '86400000', 10),
+  },
 };
