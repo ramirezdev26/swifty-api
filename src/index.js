@@ -9,17 +9,15 @@ import path from 'path';
 import router from './presentation/routes/api.routes.js';
 import errorMiddleware from './presentation/middleware/error.middleware.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
-import rabbitmqService from './infrastructure/services/rabbitmq.service.js';
-import { setupDependencies } from './infrastructure/config/dependencies.js';
-import { setProcessImageHandler } from './presentation/controllers/image.controller.js';
-import { setRegisterUserHandler } from './presentation/controllers/auth.controller.js';
 import { initSocketServer } from './infrastructure/services/socket.service.js';
+import rabbitmqService from './infrastructure/services/rabbitmq.service.js';
+import imageResultConsumer from './infrastructure/consumers/image-result.consumer.js';
 import { config } from './infrastructure/config/env.js';
 
 dotenv.config();
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
@@ -131,55 +129,54 @@ app.use('/api', router);
 
 app.use(errorMiddleware);
 
-initializeDatabase()
-  .then(async () => {
+async function startServer() {
+  try {
+    // Initialize database
+    await initializeDatabase();
+    logger.info('[Database] PostgreSQL initialized successfully');
+
     // Initialize RabbitMQ connection
     await rabbitmqService.connect();
+    logger.info('[RabbitMQ] Connected successfully');
 
-    // Setup dependencies and command handlers
-    const {
-      eventPublisher,
-      processImageHandler,
-      registerUserHandler,
-      imageResultConsumer,
-      updateImageVisibilityUseCase,
-    } = await setupDependencies();
-
-    // Initialize Event Publisher
-    await eventPublisher.init();
-
-    // Set handlers in controllers
-    setProcessImageHandler(processImageHandler, updateImageVisibilityUseCase);
-    setRegisterUserHandler(registerUserHandler);
-
-    // Start consuming status updates
+    // Start consuming result events
     await imageResultConsumer.start();
-
-    logger.info('[Command Service] Ready');
+    logger.info('[Consumer] Image result consumer started');
 
     // Initialize WebSocket server on the server (HTTP or HTTPS)
     initSocketServer(server);
+
     server.listen(PORT, () => {
       const protocol = config.server.localCertificates ? 'HTTPS' : 'HTTP';
       const wsProtocol = config.server.localCertificates ? 'WSS' : 'WS';
       logger.info(`${protocol} Server is running on port ${PORT}`);
       logger.info(`${wsProtocol} WebSocket server path available at /ws`);
     });
-  })
-  .catch((error) => {
+  } catch (error) {
     logger.error('Failed to initialize application:', error);
     process.exit(1);
-  });
+  }
+}
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  await imageResultConsumer.stop();
   await rabbitmqService.close();
-  process.exit(0);
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
 });
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
+  await imageResultConsumer.stop();
   await rabbitmqService.close();
-  process.exit(0);
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
 });
+
+startServer();

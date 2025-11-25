@@ -36,12 +36,11 @@ export const config = {
     apiKey: process.env.GEMINI_API_KEY,
   },
   rabbitmq: {
-    url: process.env.RABBITMQ_URL,
-    exchange: process.env.RABBITMQ_EXCHANGE,
-    dlxExchange: process.env.RABBITMQ_DLX_EXCHANGE,
-    partitions: parseInt(process.env.RABBITMQ_PARTITIONS) || 3,
-    messageTtl: parseInt(process.env.RABBITMQ_MESSAGE_TTL) || 300000,
-    dlqTtl: parseInt(process.env.RABBITMQ_DLQ_TTL) || 86400000,
-    eventExchange: process.env.RABBITMQ_EVENT_EXCHANGE || 'swifty.events',
+    url: process.env.RABBITMQ_URL || 'amqp://localhost:5672',
+    exchange: process.env.RABBITMQ_EXCHANGE || 'pixpro.processing',
+    dlxExchange: process.env.RABBITMQ_DLX_EXCHANGE || 'pixpro.dlx',
+    partitions: parseInt(process.env.RABBITMQ_PARTITIONS || '3', 10),
+    messageTtl: parseInt(process.env.RABBITMQ_MESSAGE_TTL || '300000', 10),
+    dlqTtl: parseInt(process.env.RABBITMQ_DLQ_TTL || '86400000', 10),
   },
 };

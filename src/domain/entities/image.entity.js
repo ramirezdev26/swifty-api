@@ -5,10 +5,10 @@ export class Image {
     id = null,
     user_id,
     cloudinary_id = null,
+    original_url = null,
     size,
     style,
     status = 'processing',
-    original_url = null,
     visibility = 'public',
     processed_url = null,
     processing_time = null,
@@ -19,6 +19,7 @@ export class Image {
     this._id = id;
     this._user_id = user_id;
     this._cloudinary_id = cloudinary_id;
+    this._original_url = original_url;
     this._size = size;
     this._style = this.validateStyle(style);
     this._status = this.validateStatus(status);
@@ -67,6 +68,10 @@ export class Image {
     return this._cloudinary_id;
   }
 
+  get original_url() {
+    return this._original_url;
+  }
+
   get size() {
     return this._size;
   }
@@ -77,10 +82,6 @@ export class Image {
 
   get status() {
     return this._status;
-  }
-
-  get original_url() {
-    return this._original_url;
   }
 
   get visibility() {

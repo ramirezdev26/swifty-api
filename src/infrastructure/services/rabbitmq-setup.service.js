@@ -1,6 +1,7 @@
 /**
  * RabbitMQ Infrastructure Setup Service
  * Sets up partitioned queues with Dead Letter Exchange support
+ * MUST match swifty-ai-digester configuration exactly
  */
 import { config } from '../config/env.js';
 
@@ -10,9 +11,11 @@ export async function setupRabbitMQInfrastructure(channel) {
 
     // Create topic exchange for processing
     await channel.assertExchange(exchange, 'topic', { durable: true });
+    console.log(`[RabbitMQ] Exchange '${exchange}' created`);
 
     // Create Dead Letter Exchange
     await channel.assertExchange(dlxExchange, 'topic', { durable: true });
+    console.log(`[RabbitMQ] Dead Letter Exchange '${dlxExchange}' created`);
 
     // Create partitioned queues for load balancing
     for (let i = 0; i < partitions; i++) {
@@ -30,6 +33,7 @@ export async function setupRabbitMQInfrastructure(channel) {
 
       // Bind each partition queue to the exchange
       await channel.bindQueue(queueName, exchange, `image.uploaded.partition.${i}`);
+      console.log(`[RabbitMQ] Queue '${queueName}' created and bound`);
     }
 
     // Create Dead Letter Queue
@@ -43,10 +47,17 @@ export async function setupRabbitMQInfrastructure(channel) {
 
     // Bind DLQ to Dead Letter Exchange
     await channel.bindQueue('dlq.processing', dlxExchange, 'dlq.#');
+    console.log('[RabbitMQ] Dead Letter Queue created');
 
-    console.log('RabbitMQ infrastructure setup completed');
+    // Create status_updates queue for result events
+    await channel.assertQueue('status_updates', {
+      durable: true,
+    });
+    console.log('[RabbitMQ] Queue status_updates created');
+
+    console.log('[RabbitMQ] Infrastructure setup completed (Command Service)');
   } catch (error) {
-    console.error('Error setting up RabbitMQ infrastructure:', error);
+    console.error('[RabbitMQ] Error setting up infrastructure:', error);
     throw error;
   }
 }
