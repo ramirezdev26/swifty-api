@@ -5,6 +5,7 @@ export class Image {
     id = null,
     user_id,
     cloudinary_id = null,
+    original_url = null,
     size,
     style,
     status = 'processing',
@@ -18,6 +19,7 @@ export class Image {
     this._id = id;
     this._user_id = user_id;
     this._cloudinary_id = cloudinary_id;
+    this._original_url = original_url;
     this._size = size;
     this._style = this.validateStyle(style);
     this._status = this.validateStatus(status);
@@ -63,6 +65,10 @@ export class Image {
 
   get cloudinary_id() {
     return this._cloudinary_id;
+  }
+
+  get original_url() {
+    return this._original_url;
   }
 
   get size() {

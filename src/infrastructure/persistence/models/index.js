@@ -1,7 +1,8 @@
 // Import all models here (this ensures they are registered with Sequelize)
 import { UserModel } from './user.model.js';
 import { ImageModel } from './image.model.js';
-export { UserModel, ImageModel };
+import { DomainEventModel } from './domain-event.model.js';
+export { UserModel, ImageModel, DomainEventModel };
 
 // Import sequelize instance
 import sequelize from '../../config/database.js';
