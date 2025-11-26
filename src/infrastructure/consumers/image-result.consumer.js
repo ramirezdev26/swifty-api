@@ -2,20 +2,36 @@ import rabbitmqService from '../services/rabbitmq.service.js';
 import { ImageRepository } from '../persistence/repositories/image.repository.js';
 import { emitImageCompleted, emitImageFailed } from '../services/socket.service.js';
 import pino from 'pino';
+import { ImageProcessedEvent } from '../../domain/events/image-processed.event.js';
+import { EventStoreRepository } from '../persistence/repositories/event-store.repository.js';
+import { EventPublisher } from '../messaging/event-publisher.service.js';
+import { ProcessingFailedEvent } from '../../domain/events/processing-failed.event.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+class RabbitMQWrapper {
+  constructor(rabbitmqService) {
+    this.rabbitmqService = rabbitmqService;
+  }
+
+  async getChannel() {
+    return this.rabbitmqService.channel;
+  }
+}
 
 class ImageResultConsumer {
   constructor() {
     this.rabbitmqService = rabbitmqService;
     this.imageRepository = new ImageRepository();
     this.isConsuming = false;
+    this.eventStoreRepository = new EventStoreRepository();
+    this.eventPublisher = new EventPublisher(new RabbitMQWrapper(rabbitmqService));
   }
 
   async start() {
     try {
       logger.info('[ImageResultConsumer] Starting consumer...');
 
+      await this.eventPublisher.init();
       const RESULT_EXCHANGE = 'image.results';
       const QUEUE_NAME = 'status_updates.api';
 
@@ -111,6 +127,17 @@ class ImageResultConsumer {
         processedAt: updatedImage.processed_at,
       });
 
+      const event = new ImageProcessedEvent(
+        payload.imageId,
+        payload.userId,
+        payload.processedUrl,
+        payload.processingTime
+      );
+      // 5. Persistir evento en Event Store
+      await this.eventStoreRepository.append(event);
+
+      await this.eventPublisher.publish(event);
+
       logger.info(
         {
           imageId,
@@ -151,6 +178,13 @@ class ImageResultConsumer {
         error: errorCode || 'PROCESSING_ERROR',
         message: error || 'Image processing failed',
       });
+
+      const event = new ProcessingFailedEvent(payload.imageId, payload.userId, payload.error);
+      // 5. Persistir evento en Event Store
+      await this.eventStoreRepository.append(event);
+
+      // 6. Publicar evento a RabbitMQ
+      await this.eventPublisher.publish(event);
 
       logger.warn(
         {

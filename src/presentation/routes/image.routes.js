@@ -1,14 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
-import {
-  processImage,
-  getProcessedImages,
-  getUserImages,
-  updateImageVisibility,
-} from '../controllers/image.controller.js';
+import { processImage, updateImageVisibility } from '../controllers/image.controller.js';
 import {
   validateProcessImageInput,
-  validateGetProcessedImagesInput,
   validateUpdateImageVisibilityInput,
   validateImageIdParam,
 } from '../validators/image.validator.js';
@@ -34,10 +28,6 @@ router.post(
   validateProcessImageInput,
   processImage
 );
-
-router.get('/', validateGetProcessedImagesInput, getProcessedImages);
-
-router.get('/users/me', AuthMiddleware.verifyToken, getUserImages);
 
 router.patch(
   '/:id/visibility',

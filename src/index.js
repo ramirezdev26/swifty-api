@@ -13,6 +13,8 @@ import { initSocketServer } from './infrastructure/services/socket.service.js';
 import rabbitmqService from './infrastructure/services/rabbitmq.service.js';
 import imageResultConsumer from './infrastructure/consumers/image-result.consumer.js';
 import { config } from './infrastructure/config/env.js';
+import { setupDependencies } from './infrastructure/config/dependencies.js';
+import { setRegisterUserHandler } from './presentation/controllers/auth.controller.js';
 
 dotenv.config();
 
@@ -142,6 +144,15 @@ async function startServer() {
     // Start consuming result events
     await imageResultConsumer.start();
     logger.info('[Consumer] Image result consumer started');
+
+    // Setup dependencies and command handlers
+    const { eventPublisher, registerUserHandler } = await setupDependencies();
+
+    // Initialize Event Publisher
+    await eventPublisher.init();
+
+    // Set handlers in controllers
+    setRegisterUserHandler(registerUserHandler);
 
     // Initialize WebSocket server on the server (HTTP or HTTPS)
     initSocketServer(server);

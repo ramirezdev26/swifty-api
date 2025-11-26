@@ -23,6 +23,7 @@ export class Image {
     this._size = size;
     this._style = this.validateStyle(style);
     this._status = this.validateStatus(status);
+    this._original_url = original_url;
     this._visibility = this.validateVisibility(visibility);
     this._processed_url = processed_url;
     this._processing_time = processing_time;

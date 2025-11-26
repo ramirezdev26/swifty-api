@@ -11,6 +11,7 @@ export class ImageRepository extends IImageRepository {
       size: image.size,
       style: image.style,
       status: image.status,
+      original_url: image.original_url,
       visibility: image.visibility,
       processed_url: image.processed_url,
       processing_time: image.processing_time,
@@ -45,79 +46,5 @@ export class ImageRepository extends IImageRepository {
     });
 
     return images.map((image) => ImageMapper.toEntity(image));
-  }
-
-  async findByUserIdWithPagination(page = 1, limit = 12, status = 'processed') {
-    const offset = (page - 1) * limit;
-
-    const { count, rows } = await ImageModel.findAndCountAll({
-      where: {
-        status: status,
-        visibility: 'public',
-      },
-      order: [['createdAt', 'DESC']],
-      limit: limit,
-      offset: offset,
-    });
-
-    const images = rows.map((image) => ImageMapper.toEntity(image));
-
-    return {
-      images,
-      totalCount: count,
-    };
-  }
-
-  async findUserImagesWithPagination(
-    userId,
-    page = 1,
-    limit = 12,
-    sortBy = 'created_at',
-    order = 'desc',
-    projectId = null,
-    style = null
-  ) {
-    const offset = (page - 1) * limit;
-
-    const validSortFields = ['created_at', 'processed_at', 'style'];
-    const validOrders = ['asc', 'desc'];
-
-    const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'created_at';
-    const finalOrder = validOrders.includes(order.toLowerCase()) ? order.toUpperCase() : 'DESC';
-
-    const whereConditions = {
-      user_id: userId,
-    };
-
-    if (projectId && projectId !== 'all') {
-      whereConditions.project_id = projectId;
-    }
-
-    if (style && style !== 'all') {
-      const styleMapping = {
-        anime: 'anime',
-        'pixel-art': 'pixel-art',
-        cartoon: 'cartoon',
-        realism: 'realism',
-        'oil-painting': 'oil-painting',
-      };
-
-      const dbStyle = styleMapping[style.toLowerCase()] || style;
-      whereConditions.style = dbStyle;
-    }
-
-    const { count, rows } = await ImageModel.findAndCountAll({
-      where: whereConditions,
-      order: [[finalSortBy, finalOrder]],
-      limit: limit,
-      offset: offset,
-    });
-
-    const images = rows.map((image) => ImageMapper.toEntity(image));
-
-    return {
-      images,
-      totalCount: count,
-    };
   }
 }
