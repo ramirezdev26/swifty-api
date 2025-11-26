@@ -23,6 +23,10 @@ ImageModel.init(
       type: DataTypes.STRING(255),
       allowNull: true,
     },
+    original_url: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     size: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -41,9 +45,13 @@ ImageModel.init(
         isIn: [['processing', 'processed', 'failed']],
       },
     },
-    original_url: {
-      type: DataTypes.TEXT,
-      allowNull: true,
+    visibility: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: 'public',
+      validate: {
+        isIn: [['public', 'private']],
+      },
     },
     processed_url: {
       type: DataTypes.TEXT,
@@ -70,6 +78,9 @@ ImageModel.init(
       },
       {
         fields: ['status'],
+      },
+      {
+        fields: ['visibility'],
       },
     ],
   }

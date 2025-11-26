@@ -1,117 +1,154 @@
 import amqp from 'amqplib';
-import crypto from 'crypto';
 import { config } from '../config/env.js';
 import { setupRabbitMQInfrastructure } from './rabbitmq-setup.service.js';
+import pino from 'pino';
+
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 class RabbitMQService {
   constructor() {
     this.connection = null;
     this.channel = null;
-    this.isConnected = false;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 3;
-    this.reconnectDelay = 5000;
-  }
-
-  generateEventId() {
-    return `evt_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
-  }
-
-  getPartitionKey(imageId) {
-    const hash = crypto.createHash('md5').update(imageId).digest('hex');
-    const hashInt = parseInt(hash.substring(0, 8), 16);
-    return hashInt % config.rabbitmq.partitions;
+    this.maxRetries = 3;
+    this.retryDelay = 5000;
   }
 
   async connect() {
-    const { url } = config.rabbitmq;
-    if (!url) {
-      throw new Error('RABBITMQ_URL is not defined in environment variables');
-    }
+    let retries = 0;
 
-    for (let attempt = 1; attempt <= this.maxReconnectAttempts; attempt++) {
+    while (retries < this.maxRetries) {
       try {
-        this.connection = await amqp.connect(url);
+        this.connection = await amqp.connect(config.rabbitmq.url);
         this.channel = await this.connection.createChannel();
 
-        // Keep backward compatibility - existing queues
-        await this.channel.assertQueue('image_processing', { durable: true });
-        await this.channel.assertQueue('status_updates', { durable: true });
-
-        // Setup new partitioned infrastructure
+        // Setup infrastructure (exchanges, queues, bindings)
         await setupRabbitMQInfrastructure(this.channel);
 
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        console.log('Connected to RabbitMQ');
-
         this.connection.on('error', (err) => {
-          console.error('RabbitMQ connection error:', err);
-          this.isConnected = false;
+          logger.error({ err }, '[RabbitMQ] Connection error');
         });
 
         this.connection.on('close', () => {
-          this.isConnected = false;
-          console.log('RabbitMQ connection closed');
+          logger.warn('[RabbitMQ] Connection closed');
         });
 
+        logger.info('[RabbitMQ] Connected successfully');
         return;
       } catch (error) {
-        console.error(`RabbitMQ connection attempt ${attempt} failed:`, error.message);
-        this.reconnectAttempts = attempt;
+        retries++;
+        logger.error(
+          { error: error.message, attempt: retries, maxRetries: this.maxRetries },
+          '[RabbitMQ] Connection attempt failed'
+        );
 
-        if (attempt < this.maxReconnectAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, this.reconnectDelay));
+        if (retries < this.maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, this.retryDelay));
         } else {
-          throw new Error('Failed to connect to RabbitMQ after maximum attempts');
+          throw new Error(`Failed to connect to RabbitMQ after ${this.maxRetries} attempts`);
         }
       }
     }
   }
 
-  async publishImageUploaded(payload) {
-    if (!this.isConnected || !this.channel) {
-      throw new Error('RabbitMQ is not connected');
-    }
-
-    const partition = this.getPartitionKey(payload.imageId);
-    const routingKey = `image.uploaded.partition.${partition}`;
-    const { exchange } = config.rabbitmq;
-
-    // Log partition assignment for verification
-    console.log(`Publishing to partition ${partition} for imageId: ${payload.imageId}`);
-
-    const event = {
-      eventType: 'ImageUploaded',
-      eventId: this.generateEventId(),
-      timestamp: new Date().toISOString(),
-      version: '1.0',
-      payload: {
-        imageId: payload.imageId,
-        userId: payload.userId,
-        originalImageUrl: payload.originalImageUrl,
-        style: payload.style,
-      },
-    };
-
+  /**
+   * Publish ImageUploadEvent to partitioned queue
+   * @param {Object} event - ImageUploadEvent
+   */
+  async publishImageUploadEvent(event) {
     try {
-      // Publish to partitioned exchange
-      this.channel.publish(exchange, routingKey, Buffer.from(JSON.stringify(event)), {
-        persistent: true,
-        headers: {
-          'x-partition': partition,
-          'x-retry-count': 0,
-        },
-      });
+      if (!this.channel) {
+        throw new Error('RabbitMQ channel not initialized');
+      }
 
-      // Keep backward compatibility - also publish to old queue
-      this.channel.sendToQueue('image_processing', Buffer.from(JSON.stringify(event)), {
-        persistent: true,
-      });
+      // Determine partition based on imageId for load balancing
+      const partition = this._getPartition(event.payload.imageId);
+      const routingKey = `image.uploaded.partition.${partition}`;
+
+      await this.channel.publish(
+        config.rabbitmq.exchange,
+        routingKey,
+        Buffer.from(JSON.stringify(event)),
+        {
+          persistent: true,
+          headers: {
+            'x-partition': partition,
+            'x-retry-count': 0,
+          },
+        }
+      );
+
+      logger.info(
+        {
+          eventId: event.eventId,
+          imageId: event.payload.imageId,
+          partition,
+          routingKey,
+        },
+        '[RabbitMQ] Published ImageUploadEvent'
+      );
     } catch (error) {
-      console.error('Error publishing ImageUploaded event:', error);
+      logger.error({ error: error.message, event }, '[RabbitMQ] Failed to publish event');
       throw error;
     }
+  }
+
+  /**
+   * Publish event to direct queue
+   * @param {string} queueName - Queue name
+   * @param {Object} message - Message to publish
+   */
+  async publishToQueue(queueName, message) {
+    try {
+      if (!this.channel) {
+        throw new Error('RabbitMQ channel not initialized');
+      }
+
+      await this.channel.assertQueue(queueName, { durable: true });
+      this.channel.sendToQueue(queueName, Buffer.from(JSON.stringify(message)), {
+        persistent: true,
+      });
+
+      logger.debug({ queueName, messageType: message.eventType }, '[RabbitMQ] Published to queue');
+    } catch (error) {
+      logger.error({ error: error.message, queueName }, '[RabbitMQ] Failed to publish to queue');
+      throw error;
+    }
+  }
+
+  /**
+   * Consume messages from queue
+   * @param {string} queueName - Queue name
+   * @param {Function} handler - Message handler function
+   */
+  async consumeFromQueue(queueName, handler) {
+    try {
+      if (!this.channel) {
+        throw new Error('RabbitMQ channel not initialized');
+      }
+
+      await this.channel.assertQueue(queueName, { durable: true });
+      await this.channel.prefetch(1);
+
+      await this.channel.consume(queueName, handler, { noAck: false });
+      logger.info({ queueName }, '[RabbitMQ] Started consuming from queue');
+    } catch (error) {
+      logger.error({ error: error.message, queueName }, '[RabbitMQ] Failed to consume from queue');
+      throw error;
+    }
+  }
+
+  _getPartition(imageId) {
+    // Simple hash-based partitioning
+    let hash = 0;
+    for (let i = 0; i < imageId.length; i++) {
+      hash = (hash << 5) - hash + imageId.charCodeAt(i);
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash) % config.rabbitmq.partitions;
+  }
+
+  getChannel() {
+    return this.channel;
   }
 
   async close() {
@@ -122,10 +159,9 @@ class RabbitMQService {
       if (this.connection) {
         await this.connection.close();
       }
-      this.isConnected = false;
-      console.log('RabbitMQ connection closed gracefully');
+      logger.info('[RabbitMQ] Connection closed gracefully');
     } catch (error) {
-      console.error('Error closing RabbitMQ connection:', error);
+      logger.error({ error: error.message }, '[RabbitMQ] Error closing connection');
     }
   }
 }

@@ -6,6 +6,7 @@ import { RegisterUserHandler } from '../../application/command-handlers/register
 import { EventPublisher } from '../messaging/event-publisher.service.js';
 import cloudinaryService from '../services/cloudinary.service.js';
 import rabbitmqService from '../services/rabbitmq.service.js';
+import { UpdateImageVisibilityUseCase } from '../../application/use-cases/image/update-image-visibility.usecase.js';
 
 // Create a wrapper for RabbitMQ to match EventPublisher interface
 class RabbitMQWrapper {
@@ -45,6 +46,11 @@ export async function setupDependencies() {
     eventPublisher
   );
 
+  const updateImageVisibilityUseCase = new UpdateImageVisibilityUseCase(
+    imageRepository,
+    userRepository
+  );
+
   return {
     imageRepository,
     userRepository,
@@ -52,5 +58,6 @@ export async function setupDependencies() {
     eventPublisher,
     processImageHandler,
     registerUserHandler,
+    updateImageVisibilityUseCase,
   };
 }

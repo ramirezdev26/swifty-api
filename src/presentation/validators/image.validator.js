@@ -26,6 +26,14 @@ const getProcessedImagesSchema = Joi.object({
   }),
 }).options({ stripUnknown: true });
 
+const updateVisibilitySchema = Joi.object({
+  visibility: Joi.string().valid('public', 'private').required().messages({
+    'string.empty': 'Visibility is required',
+    'any.only': 'Visibility must be either public or private',
+    'any.required': 'Visibility is required',
+  }),
+}).options({ stripUnknown: true });
+
 export const validateProcessImageInput = (req, res, next) => {
   try {
     if (!req.file) {
@@ -69,6 +77,52 @@ export const validateGetProcessedImagesInput = (req, res, next) => {
     }
 
     Object.assign(req.query, value);
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const validateUpdateImageVisibilityInput = (req, res, next) => {
+  try {
+    const { error, value } = updateVisibilitySchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      const errors = error.details.map((err) => ({
+        field: err.path[0],
+        message: err.message,
+      }));
+      throw new ValidationError('Validation failed', errors);
+    }
+
+    Object.assign(req.body, value);
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const imageIdParamSchema = Joi.object({
+  id: Joi.string()
+    .guid({ version: ['uuidv4'] })
+    .required()
+    .messages({
+      'string.base': 'Image id must be a string',
+      'string.guid': 'Image id must be a valid UUID v4',
+      'any.required': 'Image id is required',
+    }),
+});
+
+export const validateImageIdParam = (req, res, next) => {
+  try {
+    const { error, value } = imageIdParamSchema.validate(req.params, { abortEarly: false });
+    if (error) {
+      const errors = error.details.map((err) => ({
+        field: err.path[0],
+        message: err.message,
+      }));
+      throw new ValidationError('Validation failed', errors);
+    }
+    Object.assign(req.params, value);
     next();
   } catch (error) {
     next(error);

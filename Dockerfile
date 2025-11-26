@@ -24,6 +24,7 @@ FROM node:22-alpine AS production
 RUN apk add --no-cache --virtual .runtime-deps \
     dumb-init \
     curl \
+    openssl \
     && apk add --no-cache --upgrade \
     && rm -rf /var/cache/apk/*
 
@@ -37,9 +38,19 @@ WORKDIR /app
 COPY --from=build --chown=nextjs:nodejs /app/package*.json ./
 COPY --from=build --chown=nextjs:nodejs /app/node_modules ./node_modules
 
-# Copy application source code
+# Copy application source code and scripts
 COPY --chown=nextjs:nodejs ./src ./src
+COPY --chown=nextjs:nodejs ./scripts ./scripts
 COPY --chown=nextjs:nodejs ./src/index.js ./
+
+# Generate certificates if LOCAL_CERTIFICATES is true
+RUN mkdir -p /app/certs && \
+    if [ "$LOCAL_CERTIFICATES" = "true" ]; then \
+        echo "Generating self-signed certificates..." && \
+        openssl req -x509 -newkey rsa:4096 -keyout /app/certs/server.key -out /app/certs/server.crt -days 365 -nodes -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" && \
+        chmod 600 /app/certs/server.key && \
+        echo "Certificates generated successfully"; \
+    fi
 
 # Switch to non-root user
 USER nextjs

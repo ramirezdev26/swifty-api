@@ -26,4 +26,23 @@ export class IImageRepository {
     this._status = status;
     throw new Error('Method not implemented');
   }
+
+  async findUserImagesWithPagination(
+    userId,
+    page,
+    limit,
+    sortBy = 'created_at',
+    order = 'desc',
+    projectId = null,
+    style = null
+  ) {
+    this._userId = userId;
+    this._page = page;
+    this._limit = limit;
+    this._sortBy = sortBy;
+    this._order = order;
+    this._projectId = projectId;
+    this._style = style;
+    throw new Error('Method not implemented');
+  }
 }

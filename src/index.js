@@ -2,19 +2,24 @@ import express from 'express';
 import cors from 'cors';
 import pino from 'pino';
 import dotenv from 'dotenv';
+import http from 'http';
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
 import router from './presentation/routes/api.routes.js';
 import errorMiddleware from './presentation/middleware/error.middleware.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
+import { initSocketServer } from './infrastructure/services/socket.service.js';
 import rabbitmqService from './infrastructure/services/rabbitmq.service.js';
 import imageResultConsumer from './infrastructure/consumers/image-result.consumer.js';
+import { config } from './infrastructure/config/env.js';
 import { setupDependencies } from './infrastructure/config/dependencies.js';
-import { setProcessImageHandler } from './presentation/controllers/image.controller.js';
 import { setRegisterUserHandler } from './presentation/controllers/auth.controller.js';
 
 dotenv.config();
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
@@ -32,6 +37,39 @@ const logger = pino({
 
 const app = express();
 
+function createServer() {
+  if (config.server.localCertificates) {
+    const sslKeyPath = config.server.sslKeyPath || path.join(process.cwd(), 'certs', 'server.key');
+    const sslCertPath =
+      config.server.sslCertPath || path.join(process.cwd(), 'certs', 'server.crt');
+
+    // Check if certificate files exist
+    if (!fs.existsSync(sslKeyPath) || !fs.existsSync(sslCertPath)) {
+      logger.error('SSL certificates not found. Please run: npm run generate-certs');
+      logger.error(`Expected key: ${sslKeyPath}`);
+      logger.error(`Expected cert: ${sslCertPath}`);
+      process.exit(1);
+    }
+
+    try {
+      const sslOptions = {
+        key: fs.readFileSync(sslKeyPath),
+        cert: fs.readFileSync(sslCertPath),
+      };
+      logger.info('Creating HTTPS server with local certificates');
+      return https.createServer(sslOptions, app);
+    } catch (error) {
+      logger.error('Failed to create HTTPS server:', error.message);
+      process.exit(1);
+    }
+  } else {
+    logger.info('Creating HTTP server');
+    return http.createServer(app);
+  }
+}
+
+const server = createServer();
+
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
@@ -46,16 +84,30 @@ const corsOptions = {
       'http://127.0.0.1:3000',
     ].filter(Boolean); // Remove undefined values
 
+    // Add HTTPS versions of localhost origins when using certificates
+    if (config.server.localCertificates) {
+      allowedOrigins.push(
+        'https://localhost:4200',
+        'https://127.0.0.1:4200',
+        'https://localhost:3000',
+        'https://127.0.0.1:3000'
+      );
+    }
+
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    // In development, allow all localhost origins
-    if (
-      isDevelopment &&
-      (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
-    ) {
-      return callback(null, true);
+    // In development, allow all localhost origins (both HTTP and HTTPS)
+    if (isDevelopment) {
+      if (
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        (config.server.localCertificates &&
+          (origin.startsWith('https://localhost:') || origin.startsWith('https://127.0.0.1:')))
+      ) {
+        return callback(null, true);
+      }
     }
 
     return callback(new Error(`CORS policy violation: ${origin} not allowed`));
@@ -79,44 +131,63 @@ app.use('/api', router);
 
 app.use(errorMiddleware);
 
-initializeDatabase()
-  .then(async () => {
+async function startServer() {
+  try {
+    // Initialize database
+    await initializeDatabase();
+    logger.info('[Database] PostgreSQL initialized successfully');
+
     // Initialize RabbitMQ connection
     await rabbitmqService.connect();
+    logger.info('[RabbitMQ] Connected successfully');
+
+    // Start consuming result events
+    await imageResultConsumer.start();
+    logger.info('[Consumer] Image result consumer started');
 
     // Setup dependencies and command handlers
-    const { eventPublisher, processImageHandler, registerUserHandler } = await setupDependencies();
+    const { eventPublisher, registerUserHandler } = await setupDependencies();
 
     // Initialize Event Publisher
     await eventPublisher.init();
 
     // Set handlers in controllers
-    setProcessImageHandler(processImageHandler);
     setRegisterUserHandler(registerUserHandler);
 
-    // Start consuming status updates
-    await imageResultConsumer.start();
+    // Initialize WebSocket server on the server (HTTP or HTTPS)
+    initSocketServer(server);
 
-    logger.info('[Command Service] Ready');
-
-    app.listen(PORT, () => {
-      logger.info(`[Command Service] Running on port ${PORT}`);
+    server.listen(PORT, () => {
+      const protocol = config.server.localCertificates ? 'HTTPS' : 'HTTP';
+      const wsProtocol = config.server.localCertificates ? 'WSS' : 'WS';
+      logger.info(`${protocol} Server is running on port ${PORT}`);
+      logger.info(`${wsProtocol} WebSocket server path available at /ws`);
     });
-  })
-  .catch((error) => {
+  } catch (error) {
     logger.error('Failed to initialize application:', error);
     process.exit(1);
-  });
+  }
+}
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  await imageResultConsumer.stop();
   await rabbitmqService.close();
-  process.exit(0);
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
 });
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
+  await imageResultConsumer.stop();
   await rabbitmqService.close();
-  process.exit(0);
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
 });
+
+startServer();

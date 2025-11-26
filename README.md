@@ -14,6 +14,8 @@ A Node.js REST API built with Express.js, featuring clean architecture, Docker c
 - **PostgreSQL Integration**: Database persistence with Sequelize ORM and retry logic
 - **Firebase Integration**: Cloud services integration with graceful degradation
 - **Database Resilience**: Automatic connection retry with exponential backoff
+- **HTTPS Support**: Optional SSL/TLS encryption with automatic certificate generation for development
+- **WebSocket Security**: WSS support when HTTPS is enabled with origin validation
 
 ## 📋 Prerequisites
 
@@ -46,6 +48,94 @@ DB_NAME=swifty_db         # Database name
 2. Sequelize reads model definitions
 3. `sequelize.sync()` creates/updates tables automatically
 4. Logs show: `Database models synced successfully`
+
+## 🔐 HTTPS Configuration
+
+The API supports both HTTP and HTTPS protocols. HTTPS with self-signed certificates can be enabled for local development using the `LOCAL_CERTIFICATES` environment variable.
+
+### HTTPS Environment Variables
+
+```bash
+# Enable HTTPS with self-signed certificates
+LOCAL_CERTIFICATES=true
+
+# Optional: Custom certificate paths (defaults shown)
+SSL_KEY_PATH=./certs/server.key
+SSL_CERT_PATH=./certs/server.crt
+```
+
+### Setting up HTTPS
+
+#### Option 1: Automatic Certificate Generation (Recommended)
+
+1. **Enable HTTPS in environment**
+   ```bash
+   echo "LOCAL_CERTIFICATES=true" >> .env
+   ```
+
+2. **Generate certificates**
+   ```bash
+   npm run generate-certs
+   ```
+   This creates self-signed certificates in the `certs/` directory.
+
+3. **Start with HTTPS**
+   ```bash
+   # With Docker Compose
+   docker compose up --build
+
+   # Or with npm
+   npm run dev
+   ```
+
+#### Option 2: Using Docker Compose with HTTPS
+
+```bash
+# Set environment variable and start
+LOCAL_CERTIFICATES=true docker compose up --build
+```
+
+#### Option 3: Manual Certificate Setup
+
+1. **Create certificates directory**
+   ```bash
+   mkdir -p certs
+   ```
+
+2. **Generate certificates manually**
+   ```bash
+   openssl req -x509 -newkey rsa:4096 -keyout certs/server.key -out certs/server.crt -days 365 -nodes -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+   chmod 600 certs/server.key
+   ```
+
+3. **Start the application**
+   ```bash
+   LOCAL_CERTIFICATES=true npm run dev
+   ```
+
+### HTTPS Behavior
+
+- **HTTP Mode** (default): Server runs on `http://localhost:3000`
+- **HTTPS Mode**: Server runs on `https://localhost:3000`
+- **WebSocket Support**: Automatically uses WSS when HTTPS is enabled
+- **CORS**: HTTPS origins are automatically allowed when certificates are enabled
+- **Browser Warnings**: Self-signed certificates will show security warnings (expected for development)
+
+### Production HTTPS
+
+⚠️ **Self-signed certificates are for development only!** For production:
+
+1. Obtain certificates from a trusted Certificate Authority (CA)
+2. Set `LOCAL_CERTIFICATES=false`
+3. Configure `SSL_KEY_PATH` and `SSL_CERT_PATH` to point to your production certificates
+4. Consider using a reverse proxy (nginx, Apache) for SSL termination
+
+### Troubleshooting HTTPS
+
+- **Certificate not found**: Run `npm run generate-certs` or check certificate paths
+- **Browser security warnings**: Click "Advanced" → "Proceed to localhost (unsafe)" (expected)
+- **WebSocket connection fails**: Ensure both HTTP and WebSocket use the same protocol (HTTP→WS, HTTPS→WSS)
+- **Port issues**: HTTPS uses the same port (3000) as HTTP
 
 ## 🛠️ Local Development
 
@@ -105,6 +195,11 @@ NODE_ENV=development
 PORT=3000
 LOG_LEVEL=debug
 FRONTEND_URL=http://localhost:4200
+
+# HTTPS Configuration (optional)
+# LOCAL_CERTIFICATES=true
+# SSL_KEY_PATH=./certs/server.key
+# SSL_CERT_PATH=./certs/server.crt
 
 # Database
 DB_HOST=postgres

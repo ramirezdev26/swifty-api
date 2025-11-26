@@ -5,10 +5,11 @@ export class Image {
     id = null,
     user_id,
     cloudinary_id = null,
+    original_url = null,
     size,
     style,
     status = 'processing',
-    original_url = null,
+    visibility = 'public',
     processed_url = null,
     processing_time = null,
     processed_at = null,
@@ -18,10 +19,12 @@ export class Image {
     this._id = id;
     this._user_id = user_id;
     this._cloudinary_id = cloudinary_id;
+    this._original_url = original_url;
     this._size = size;
     this._style = this.validateStyle(style);
     this._status = this.validateStatus(status);
     this._original_url = original_url;
+    this._visibility = this.validateVisibility(visibility);
     this._processed_url = processed_url;
     this._processing_time = processing_time;
     this._processed_at = processed_at;
@@ -45,6 +48,14 @@ export class Image {
     return status;
   }
 
+  validateVisibility(visibility) {
+    const valid = ['public', 'private'];
+    if (!valid.includes(visibility)) {
+      throw new ValidationError(`Invalid visibility. Must be one of: ${valid.join(', ')}`);
+    }
+    return visibility;
+  }
+
   get id() {
     return this._id;
   }
@@ -55,6 +66,10 @@ export class Image {
 
   get cloudinary_id() {
     return this._cloudinary_id;
+  }
+
+  get original_url() {
+    return this._original_url;
   }
 
   get size() {
@@ -69,8 +84,8 @@ export class Image {
     return this._status;
   }
 
-  get original_url() {
-    return this._original_url;
+  get visibility() {
+    return this._visibility;
   }
 
   get processed_url() {

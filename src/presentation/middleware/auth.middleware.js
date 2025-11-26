@@ -1,12 +1,12 @@
 import { auth } from '../../infrastructure/config/firebase.config.js';
-import { AppError } from '../../shared/errors/index.js';
+import { AppError, UnauthorizedError, ServiceUnavailableError } from '../../shared/errors/index.js';
 
 export class AuthMiddleware {
   static async verifyToken(req, res, next) {
     try {
       // Check if Firebase auth is available
       if (!auth) {
-        return next(new AppError('Authentication service not available', 503));
+        return next(new ServiceUnavailableError('Authentication service not available'));
       }
 
       const token = AuthMiddleware.extractToken(req);
@@ -16,8 +16,10 @@ export class AuthMiddleware {
       req.user = AuthMiddleware.buildUser(decodedToken);
       next();
     } catch (error) {
-      const message = error instanceof AppError ? error.message : 'Invalid or expired token';
-      next(new AppError(message, 401));
+      if (error instanceof AppError) {
+        return next(error);
+      }
+      next(new UnauthorizedError('Invalid or expired token'));
     }
   }
 
@@ -25,12 +27,12 @@ export class AuthMiddleware {
     const header = req.headers.authorization;
 
     if (!header || !header.startsWith('Bearer ')) {
-      throw new AppError('Missing or invalid Authorization header', 401);
+      throw new UnauthorizedError('Missing or invalid Authorization header');
     }
 
     const token = header.split(' ')[1];
     if (!token) {
-      throw new AppError('Invalid token format', 401);
+      throw new UnauthorizedError('Invalid token format');
     }
 
     return token;
