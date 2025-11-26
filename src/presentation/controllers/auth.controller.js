@@ -12,7 +12,9 @@ export class AuthController {
       const { email, full_name, firebase_uid } = req.body;
 
       const command = new RegisterUserCommand(email, full_name, firebase_uid);
-      const user = await registerUserHandler.execute(command);
+
+      // Pass req.logger for correlation tracking
+      const user = await registerUserHandler.execute(command, req.logger);
 
       res.status(201).json({
         message: 'User registered successfully',

@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import pino from 'pino';
 import dotenv from 'dotenv';
 import http from 'http';
 import https from 'https';
@@ -8,6 +7,9 @@ import fs from 'fs';
 import path from 'path';
 import router from './presentation/routes/api.routes.js';
 import errorMiddleware from './presentation/middleware/error.middleware.js';
+import correlationIdMiddleware from './presentation/middleware/correlation-id.middleware.js';
+import httpLoggerMiddleware from './presentation/middleware/http-logger.middleware.js';
+import { logger } from './infrastructure/logger/pino.config.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
 import { initSocketServer } from './infrastructure/services/socket.service.js';
 import rabbitmqService from './infrastructure/services/rabbitmq.service.js';
@@ -20,20 +22,6 @@ dotenv.config();
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const PORT = process.env.PORT || 3000;
-
-const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  ...(isDevelopment && {
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'SYS:standard',
-        ignore: 'pid,hostname',
-      },
-    },
-  }),
-});
 
 const app = express();
 
@@ -120,11 +108,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.url}`);
-  logger.debug('Headers:', req.headers);
-  next();
-});
+// Logging middleware (must be before routes)
+app.use(correlationIdMiddleware); // Generate trace-id and attach logger to req
+app.use(httpLoggerMiddleware); // Log HTTP requests/responses
 
 app.use(express.json());
 app.use('/api', router);
@@ -133,61 +119,110 @@ app.use(errorMiddleware);
 
 async function startServer() {
   try {
+    logger.info({ event: 'app.startup.started' }, 'Starting swifty-api...');
+
     // Initialize database
     await initializeDatabase();
-    logger.info('[Database] PostgreSQL initialized successfully');
+    logger.info({ event: 'database.connected', type: 'PostgreSQL' }, 'Database initialized');
 
     // Initialize RabbitMQ connection
     await rabbitmqService.connect();
-    logger.info('[RabbitMQ] Connected successfully');
+    logger.info({ event: 'rabbitmq.connected' }, 'RabbitMQ connected');
 
     // Start consuming result events
     await imageResultConsumer.start();
-    logger.info('[Consumer] Image result consumer started');
+    logger.info({ event: 'consumer.started', consumer: 'image-result' }, 'Consumer started');
 
     // Setup dependencies and command handlers
     const { eventPublisher, registerUserHandler } = await setupDependencies();
 
     // Initialize Event Publisher
     await eventPublisher.init();
+    logger.info({ event: 'event-publisher.initialized' }, 'Event publisher ready');
 
     // Set handlers in controllers
     setRegisterUserHandler(registerUserHandler);
 
     // Initialize WebSocket server on the server (HTTP or HTTPS)
     initSocketServer(server);
+    const wsProtocol = config.server.localCertificates ? 'WSS' : 'WS';
+    logger.info({ event: 'websocket.initialized', protocol: wsProtocol }, 'WebSocket server ready');
 
     server.listen(PORT, () => {
       const protocol = config.server.localCertificates ? 'HTTPS' : 'HTTP';
-      const wsProtocol = config.server.localCertificates ? 'WSS' : 'WS';
-      logger.info(`${protocol} Server is running on port ${PORT}`);
-      logger.info(`${wsProtocol} WebSocket server path available at /ws`);
+      logger.info(
+        {
+          event: 'app.startup.completed',
+          protocol,
+          port: PORT,
+          environment: process.env.NODE_ENV,
+        },
+        `${protocol} Server running on port ${PORT}`
+      );
     });
   } catch (error) {
-    logger.error('Failed to initialize application:', error);
+    logger.error(
+      {
+        event: 'app.startup.failed',
+        error: {
+          message: error.message,
+          stack: error.stack,
+        },
+      },
+      'Failed to initialize application'
+    );
     process.exit(1);
   }
 }
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully');
+  logger.info({ event: 'app.shutdown.started', signal: 'SIGTERM' }, 'Shutting down gracefully');
   await imageResultConsumer.stop();
   await rabbitmqService.close();
   server.close(() => {
-    logger.info('Server closed');
+    logger.info({ event: 'app.shutdown.completed' }, 'Server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', async () => {
-  logger.info('SIGINT received, shutting down gracefully');
+  logger.info({ event: 'app.shutdown.started', signal: 'SIGINT' }, 'Shutting down gracefully');
   await imageResultConsumer.stop();
   await rabbitmqService.close();
   server.close(() => {
-    logger.info('Server closed');
+    logger.info({ event: 'app.shutdown.completed' }, 'Server closed');
     process.exit(0);
   });
+});
+
+// Handle uncaught exceptions and unhandled rejections
+process.on('uncaughtException', (error) => {
+  logger.fatal(
+    {
+      event: 'app.uncaught-exception',
+      error: {
+        message: error.message,
+        stack: error.stack,
+      },
+    },
+    'Uncaught exception - shutting down'
+  );
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.fatal(
+    {
+      event: 'app.unhandled-rejection',
+      error: {
+        reason,
+        promise,
+      },
+    },
+    'Unhandled promise rejection - shutting down'
+  );
+  process.exit(1);
 });
 
 startServer();

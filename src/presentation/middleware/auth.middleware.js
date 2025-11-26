@@ -14,6 +14,15 @@ export class AuthMiddleware {
       const decodedToken = await auth.verifyIdToken(token);
 
       req.user = AuthMiddleware.buildUser(decodedToken);
+
+      // Enrich logger with user context after authentication
+      if (req.logger) {
+        req.logger = req.logger.child({
+          userId: decodedToken.user_id,
+          userEmail: decodedToken.email,
+        });
+      }
+
       next();
     } catch (error) {
       if (error instanceof AppError) {

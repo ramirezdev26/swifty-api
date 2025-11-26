@@ -1,13 +1,11 @@
 import rabbitmqService from '../services/rabbitmq.service.js';
 import { ImageRepository } from '../persistence/repositories/image.repository.js';
 import { emitImageCompleted, emitImageFailed } from '../services/socket.service.js';
-import pino from 'pino';
+import { logger } from '../logger/pino.config.js';
 import { ImageProcessedEvent } from '../../domain/events/image-processed.event.js';
 import { EventStoreRepository } from '../persistence/repositories/event-store.repository.js';
 import { EventPublisher } from '../messaging/event-publisher.service.js';
 import { ProcessingFailedEvent } from '../../domain/events/processing-failed.event.js';
-
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 class RabbitMQWrapper {
   constructor(rabbitmqService) {
     this.rabbitmqService = rabbitmqService;
