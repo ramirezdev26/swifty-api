@@ -6,17 +6,29 @@ import rabbitmqService from '../../../infrastructure/services/rabbitmq.service.j
 import { emitImageProcessing } from '../../../infrastructure/services/socket.service.js';
 import { DomainEventRepository } from '../../../infrastructure/persistence/repositories/domain-event.repository.js';
 import pino from 'pino';
+import { ImageUploadedEvent } from '../../../domain/events/image-uploaded.event.js';
+import { EventPublisher } from '../../../infrastructure/messaging/event-publisher.service.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+class RabbitMQWrapper {
+  constructor(rabbitmqService) {
+    this.rabbitmqService = rabbitmqService;
+  }
 
+  async getChannel() {
+    return this.rabbitmqService.channel;
+  }
+}
 export class ProcessImageUseCase {
   constructor(imageRepository, userRepository) {
     this.imageRepository = imageRepository;
     this.userRepository = userRepository;
+    this.eventPublisher = new EventPublisher(new RabbitMQWrapper(rabbitmqService));
   }
 
   async execute(firebase_uid, imageBuffer, style, fileSize) {
     try {
+      await this.eventPublisher.init();
       // Find user
       const user = await this.userRepository.findByFirebaseUid(firebase_uid);
       if (!user) {
@@ -91,6 +103,18 @@ export class ProcessImageUseCase {
           version: uploadEvent.version,
           timestamp: uploadEvent.timestamp,
         });
+
+        const event = new ImageUploadedEvent(
+          savedImage.id,
+          user.uid,
+          imageEntity.original_url,
+          imageEntity.style,
+          340578,
+          user.email,
+          user.full_name
+        );
+
+        await this.eventPublisher.publish(event);
 
         logger.info(
           {
