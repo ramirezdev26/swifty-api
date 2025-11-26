@@ -1,9 +1,7 @@
 import amqp from 'amqplib';
 import { config } from '../config/env.js';
 import { setupRabbitMQInfrastructure } from './rabbitmq-setup.service.js';
-import pino from 'pino';
-
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+import { logger } from '../logger/pino.config.js';
 
 class RabbitMQService {
   constructor() {

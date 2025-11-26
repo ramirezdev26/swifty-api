@@ -18,10 +18,17 @@ export const processImage = async (req, res, next) => {
     const imageBuffer = req.file.buffer;
     const fileSize = req.file.size;
 
-    const result = await processImageUseCase.execute(firebase_uid, imageBuffer, style, fileSize);
+    // Pass req.logger for correlation tracking
+    const result = await processImageUseCase.execute(
+      firebase_uid,
+      imageBuffer,
+      style,
+      fileSize,
+      req.logger
+    );
 
-    res.status(200).json({
-      message: 'Data successfully retrieved',
+    res.status(202).json({
+      message: 'Image queued for processing',
       data: result,
     });
   } catch (error) {
@@ -35,7 +42,13 @@ export const updateImageVisibility = async (req, res, next) => {
     const { id } = req.params;
     const { visibility } = req.body;
 
-    const result = await updateImageVisibilityUseCase.execute(firebase_uid, id, visibility);
+    // Pass req.logger for correlation tracking
+    const result = await updateImageVisibilityUseCase.execute(
+      firebase_uid,
+      id,
+      visibility,
+      req.logger
+    );
 
     res.status(200).json({
       message: 'Image visibility updated',

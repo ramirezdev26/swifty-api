@@ -5,11 +5,10 @@ import cloudinaryService from '../../../infrastructure/services/cloudinary.servi
 import rabbitmqService from '../../../infrastructure/services/rabbitmq.service.js';
 import { emitImageProcessing } from '../../../infrastructure/services/socket.service.js';
 import { DomainEventRepository } from '../../../infrastructure/persistence/repositories/domain-event.repository.js';
-import pino from 'pino';
+import { logger } from '../../../infrastructure/logger/pino.config.js';
 import { ImageUploadedEvent } from '../../../domain/events/image-uploaded.event.js';
 import { EventPublisher } from '../../../infrastructure/messaging/event-publisher.service.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 class RabbitMQWrapper {
   constructor(rabbitmqService) {
     this.rabbitmqService = rabbitmqService;
@@ -19,6 +18,7 @@ class RabbitMQWrapper {
     return this.rabbitmqService.channel;
   }
 }
+
 export class ProcessImageUseCase {
   constructor(imageRepository, userRepository) {
     this.imageRepository = imageRepository;
@@ -26,22 +26,44 @@ export class ProcessImageUseCase {
     this.eventPublisher = new EventPublisher(new RabbitMQWrapper(rabbitmqService));
   }
 
-  async execute(firebase_uid, imageBuffer, style, fileSize) {
+  /**
+   * Process image upload - async flow with event-driven architecture
+   * @param {string} firebase_uid - User Firebase UID
+   * @param {Buffer} imageBuffer - Image file buffer
+   * @param {string} style - Processing style
+   * @param {number} fileSize - File size in bytes
+   * @param {Object} requestLogger - Pino logger with trace-id context (optional)
+   * @returns {Promise<Object>} Image processing result
+   */
+  async execute(firebase_uid, imageBuffer, style, fileSize, requestLogger = null) {
+    // Use provided logger with trace-id or fallback to global logger
+    const log = requestLogger || logger;
     try {
       await this.eventPublisher.init();
+
       // Find user
       const user = await this.userRepository.findByFirebaseUid(firebase_uid);
       if (!user) {
+        log.warn(
+          {
+            event: 'image.upload.failed',
+            reason: 'user_not_found',
+            firebase_uid,
+          },
+          'User not found'
+        );
         throw new NotFoundError('User');
       }
 
-      logger.info(
+      log.info(
         {
+          event: 'image.upload.started',
           userId: user.uid,
+          userEmail: user.email,
           style,
           fileSize,
         },
-        '[ProcessImageUseCase] Upload request received'
+        'Image upload initiated'
       );
 
       // Upload original image to Cloudinary
@@ -49,13 +71,15 @@ export class ProcessImageUseCase {
         folder: 'swifty-original-images',
       });
 
-      logger.info(
+      log.info(
         {
+          event: 'image.cloudinary.uploaded',
           userId: user.uid,
           cloudinaryId: cloudinaryResult.public_id,
-          url: cloudinaryResult.secure_url,
+          originalUrl: cloudinaryResult.secure_url,
+          fileSize,
         },
-        '[ProcessImageUseCase] Original image uploaded to Cloudinary'
+        'Original image uploaded to Cloudinary'
       );
 
       // Create image entity with processing status
@@ -65,18 +89,20 @@ export class ProcessImageUseCase {
         original_url: cloudinaryResult.secure_url,
         size: fileSize,
         style: style,
-        status: 'processing', // Image is now in processing queue
+        status: 'processing',
       });
 
       const savedImage = await this.imageRepository.create(imageEntity);
 
-      logger.info(
+      log.info(
         {
+          event: 'image.record.created',
           imageId: savedImage.id,
           userId: user.uid,
           status: 'processing',
+          cloudinaryId: cloudinaryResult.public_id,
         },
-        '[ProcessImageUseCase] Image record created in PostgreSQL'
+        'Image record created in database'
       );
 
       // Create and publish ImageUploadEvent
@@ -109,24 +135,33 @@ export class ProcessImageUseCase {
           user.uid,
           imageEntity.original_url,
           imageEntity.style,
-          340578,
+          fileSize,
           user.email,
           user.full_name
         );
 
         await this.eventPublisher.publish(event);
 
-        logger.info(
+        log.info(
           {
+            event: 'event.stored',
             eventId: uploadEvent.eventId,
+            eventType: uploadEvent.eventType,
             imageId: savedImage.id,
           },
-          '[ProcessImageUseCase] Event stored in PostgreSQL event store'
+          'Event stored in event store'
         );
       } catch (error) {
-        logger.error(
-          { error: error.message },
-          '[ProcessImageUseCase] Failed to store event in PostgreSQL (non-blocking)'
+        log.warn(
+          {
+            event: 'event.store.failed',
+            error: {
+              message: error.message,
+              stack: error.stack,
+            },
+            imageId: savedImage.id,
+          },
+          'Failed to store event (non-blocking)'
         );
         // Don't throw - event publishing to RabbitMQ should continue
       }
@@ -134,12 +169,15 @@ export class ProcessImageUseCase {
       // Publish to RabbitMQ for processing
       await rabbitmqService.publishImageUploadEvent(uploadEvent.toJSON());
 
-      logger.info(
+      log.info(
         {
+          event: 'event.published',
           eventId: uploadEvent.eventId,
+          eventType: uploadEvent.eventType,
           imageId: savedImage.id,
+          userId: user.uid,
         },
-        '[ProcessImageUseCase] ImageUploadEvent published to RabbitMQ'
+        'Event published to RabbitMQ'
       );
 
       // Emit WebSocket notification for initial processing state
@@ -148,12 +186,25 @@ export class ProcessImageUseCase {
         message: 'Image uploaded, queued for processing...',
       });
 
-      logger.info(
+      log.info(
         {
+          event: 'websocket.notification.sent',
           imageId: savedImage.id,
           userId: user.uid,
+          notificationType: 'image:processing',
         },
-        '[ProcessImageUseCase] WebSocket notification sent: image:processing'
+        'WebSocket notification sent'
+      );
+
+      log.info(
+        {
+          event: 'image.upload.completed',
+          imageId: savedImage.id,
+          userId: user.uid,
+          status: 'processing',
+          style,
+        },
+        'Image upload completed successfully'
       );
 
       // Return immediately without waiting for processing
@@ -165,13 +216,19 @@ export class ProcessImageUseCase {
         style: savedImage.style,
       };
     } catch (error) {
-      logger.error(
+      log.error(
         {
-          error: error.message,
-          stack: error.stack,
+          event: 'image.upload.failed',
+          error: {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          },
           firebase_uid,
+          style,
+          fileSize,
         },
-        '[ProcessImageUseCase] Error in process image use case'
+        'Image upload failed'
       );
       throw error;
     }

@@ -1,4 +1,5 @@
 import { config } from '../config/env.js';
+import { logger } from '../logger/pino.config.js';
 
 export class EventPublisher {
   constructor(rabbitmqConnection) {
@@ -10,7 +11,13 @@ export class EventPublisher {
   async init() {
     this.channel = await this.connection.getChannel();
     await this.channel.assertExchange(this.exchange, 'topic', { durable: true });
-    console.log(`[EventPublisher] Exchange '${this.exchange}' initialized`);
+    logger.info(
+      {
+        event: 'event-publisher.initialized',
+        exchange: this.exchange,
+      },
+      'Event publisher exchange initialized'
+    );
   }
 
   async publish(event) {
@@ -36,9 +43,28 @@ export class EventPublisher {
         timestamp: Date.now(),
       });
 
-      console.log(`[EventPublisher] Published ${event.type} to ${routingKey}`);
+      logger.info(
+        {
+          event: 'domain-event.published',
+          eventType: event.type,
+          routingKey,
+          aggregateId: event.aggregateId,
+          userId: event.userId,
+        },
+        `Published ${event.type}`
+      );
     } catch (error) {
-      console.error('[EventPublisher] Error publishing event:', error);
+      logger.error(
+        {
+          event: 'domain-event.publish.failed',
+          error: {
+            message: error.message,
+            stack: error.stack,
+          },
+          eventType: event.type,
+        },
+        'Failed to publish event'
+      );
       throw error;
     }
   }
