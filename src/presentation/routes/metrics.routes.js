@@ -11,7 +11,7 @@ const router = Router();
  * GET /metrics - Endpoint para Prometheus
  * Retorna todas las métricas en formato Prometheus
  */
-router.get('/metrics', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     res.set('Content-Type', register.contentType);
     const metrics = await register.metrics();
