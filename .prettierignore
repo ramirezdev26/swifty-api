@@ -17,3 +17,5 @@ package-lock.json
 *.md
 .gitlab-ci.yml
 docker-compose.yml
+alert_rules.yml
+prometheus.yml
