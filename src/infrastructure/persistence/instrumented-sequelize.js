@@ -18,6 +18,7 @@ import { logger } from '../logger/pino.config.js';
  * @returns {string} Operation type (SELECT, INSERT, UPDATE, DELETE, OTHER)
  */
 function detectOperation(sql) {
+  if (!sql || typeof sql !== 'string') return 'OTHER';
   const upperSql = sql.trim().toUpperCase();
   if (upperSql.startsWith('SELECT')) return 'SELECT';
   if (upperSql.startsWith('INSERT')) return 'INSERT';
@@ -32,6 +33,7 @@ function detectOperation(sql) {
  * @returns {string|null} Table name
  */
 function detectTable(sql) {
+  if (!sql || typeof sql !== 'string') return null;
   const match =
     sql.match(/FROM\s+["`]?(\w+)["`]?/i) ||
     sql.match(/INTO\s+["`]?(\w+)["`]?/i) ||
@@ -68,6 +70,9 @@ export const createInstrumentedSequelize = (config) => {
 
   // Hook: después de cada query exitosa
   sequelize.addHook('afterQuery', (options) => {
+    // Skip if no SQL query (e.g., connection checks)
+    if (!options || !options.sql || !options.startTime) return;
+
     const duration = (Date.now() - options.startTime) / 1000;
     const operation = detectOperation(options.sql);
     const table = detectTable(options.sql);
@@ -105,7 +110,7 @@ export const createInstrumentedSequelize = (config) => {
 
   // Hook: error en query
   sequelize.addHook('afterQuery', (options, error) => {
-    if (error) {
+    if (error && options && options.sql) {
       const operation = detectOperation(options.sql);
       const table = detectTable(options.sql);
 

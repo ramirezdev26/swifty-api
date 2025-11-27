@@ -77,13 +77,19 @@ export const httpLoggerMiddleware = pinoHttp({
         accept: req.headers?.accept,
       },
     }),
-    res: (res) => ({
-      statusCode: res.statusCode,
-      headers: {
-        'content-type': res.getHeader('content-type'),
-        'content-length': res.getHeader('content-length'),
-      },
-    }),
+    res: (res) => {
+      // Validate res is a proper response object
+      if (!res || typeof res.getHeader !== 'function') {
+        return { statusCode: res?.statusCode };
+      }
+      return {
+        statusCode: res.statusCode,
+        headers: {
+          'content-type': res.getHeader('content-type'),
+          'content-length': res.getHeader('content-length'),
+        },
+      };
+    },
   },
 
   // Don't log health check endpoints
