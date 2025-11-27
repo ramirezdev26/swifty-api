@@ -1,6 +1,7 @@
 import { UserMapper } from '../../mappers/user.mapper.js';
 import { ConflictError } from '../../../shared/errors/conflict.error.js';
 import { logger } from '../../../infrastructure/logger/pino.config.js';
+import { userRegistrationsTotal } from '../../../infrastructure/metrics/business.metrics.js';
 
 export class RegisterUserUseCase {
   constructor(userRepository) {
@@ -43,6 +44,9 @@ export class RegisterUserUseCase {
 
       const savedUser = await this.userRepository.create(userEntity);
 
+      // Registrar métrica de éxito
+      userRegistrationsTotal.inc({ status: 'success' });
+
       log.info(
         {
           event: 'user.registration.completed',
@@ -54,6 +58,10 @@ export class RegisterUserUseCase {
 
       return UserMapper.toDTO(savedUser);
     } catch (error) {
+      // Registrar métrica de fallo
+      const status = error instanceof ConflictError ? 'duplicate' : 'failed';
+      userRegistrationsTotal.inc({ status });
+
       if (!(error instanceof ConflictError)) {
         log.error(
           {

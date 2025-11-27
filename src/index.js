@@ -6,9 +6,14 @@ import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import router from './presentation/routes/api.routes.js';
+import metricsRoutes from './presentation/routes/metrics.routes.js';
 import errorMiddleware from './presentation/middleware/error.middleware.js';
 import correlationIdMiddleware from './presentation/middleware/correlation-id.middleware.js';
 import httpLoggerMiddleware from './presentation/middleware/http-logger.middleware.js';
+import {
+  metricsMiddleware,
+  errorMetricsMiddleware,
+} from './presentation/middleware/metrics.middleware.js';
 import { logger } from './infrastructure/logger/pino.config.js';
 import { initializeDatabase } from './infrastructure/persistence/initialize-database.js';
 import { initSocketServer } from './infrastructure/services/socket.service.js';
@@ -108,14 +113,20 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Logging middleware (must be before routes)
-app.use(correlationIdMiddleware); // Generate trace-id and attach logger to req
-app.use(httpLoggerMiddleware); // Log HTTP requests/responses
+// Middleware order is important
+app.use(correlationIdMiddleware); // 1. Generate trace-id and attach logger to req
+app.use(metricsMiddleware); // 2. Collect HTTP metrics
+app.use(httpLoggerMiddleware); // 3. Log HTTP requests/responses
 
 app.use(express.json());
-app.use('/api', router);
 
-app.use(errorMiddleware);
+// Routes
+app.use('/metrics', metricsRoutes); // Metrics endpoint (no auth required)
+app.use('/api', router); // API routes
+
+// Error handling (must be at the end)
+app.use(errorMetricsMiddleware); // Capture errors for metrics
+app.use(errorMiddleware); // Handle errors
 
 async function startServer() {
   try {
