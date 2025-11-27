@@ -2,6 +2,11 @@ import amqp from 'amqplib';
 import { config } from '../config/env.js';
 import { setupRabbitMQInfrastructure } from './rabbitmq-setup.service.js';
 import { logger } from '../logger/pino.config.js';
+import {
+  rabbitmqMessagesPublished,
+  rabbitmqPublishDuration,
+  rabbitmqErrorsTotal,
+} from '../metrics/rabbitmq.metrics.js';
 
 class RabbitMQService {
   constructor() {
@@ -53,6 +58,9 @@ class RabbitMQService {
    * @param {Object} event - ImageUploadEvent
    */
   async publishImageUploadEvent(event) {
+    const startTime = Date.now();
+    const eventType = 'ImageUploaded';
+
     try {
       if (!this.channel) {
         throw new Error('RabbitMQ channel not initialized');
@@ -75,16 +83,26 @@ class RabbitMQService {
         }
       );
 
+      // Registrar métricas de éxito
+      const duration = (Date.now() - startTime) / 1000;
+      rabbitmqPublishDuration.observe({ event_type: eventType }, duration);
+      rabbitmqMessagesPublished.inc({ event_type: eventType, status: 'success' });
+
       logger.info(
         {
           eventId: event.eventId,
           imageId: event.payload.imageId,
           partition,
           routingKey,
+          duration: duration * 1000,
         },
         '[RabbitMQ] Published ImageUploadEvent'
       );
     } catch (error) {
+      // Registrar métricas de error
+      rabbitmqMessagesPublished.inc({ event_type: eventType, status: 'error' });
+      rabbitmqErrorsTotal.inc({ error_type: error.constructor.name });
+
       logger.error({ error: error.message, event }, '[RabbitMQ] Failed to publish event');
       throw error;
     }
@@ -96,6 +114,9 @@ class RabbitMQService {
    * @param {Object} message - Message to publish
    */
   async publishToQueue(queueName, message) {
+    const startTime = Date.now();
+    const eventType = message.eventType || 'Unknown';
+
     try {
       if (!this.channel) {
         throw new Error('RabbitMQ channel not initialized');
@@ -106,8 +127,17 @@ class RabbitMQService {
         persistent: true,
       });
 
-      logger.debug({ queueName, messageType: message.eventType }, '[RabbitMQ] Published to queue');
+      // Registrar métricas de éxito
+      const duration = (Date.now() - startTime) / 1000;
+      rabbitmqPublishDuration.observe({ event_type: eventType }, duration);
+      rabbitmqMessagesPublished.inc({ event_type: eventType, status: 'success' });
+
+      logger.debug({ queueName, messageType: eventType }, '[RabbitMQ] Published to queue');
     } catch (error) {
+      // Registrar métricas de error
+      rabbitmqMessagesPublished.inc({ event_type: eventType, status: 'error' });
+      rabbitmqErrorsTotal.inc({ error_type: error.constructor.name });
+
       logger.error({ error: error.message, queueName }, '[RabbitMQ] Failed to publish to queue');
       throw error;
     }

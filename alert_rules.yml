@@ -1,0 +1,146 @@
+# Prometheus Alerting Rules for swifty-api
+# Save this as alert_rules.yml and reference it in prometheus.yml
+
+groups:
+  - name: swifty-api-alerts
+    interval: 30s
+    rules:
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(swifty_api_http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(swifty_api_http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: swifty-api
+        annotations:
+          summary: "High error rate detected in swifty-api"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+          
+      # High Latency Alert
+      - alert: HighAPILatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(swifty_api_http_request_duration_seconds_bucket[5m])
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: swifty-api
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency is {{ $value }}s (threshold: 1s)"
+          
+      # Database Slow Queries
+      - alert: DatabaseSlowQueries
+        expr: |
+          histogram_quantile(0.95,
+            rate(swifty_api_database_query_duration_seconds_bucket[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: swifty-api
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile query time is {{ $value }}s (threshold: 100ms)"
+          
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolHigh
+        expr: |
+          (swifty_api_database_active_connections / swifty_api_database_pool_size) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: swifty-api
+        annotations:
+          summary: "Database connection pool usage is high"
+          description: "Pool usage is {{ $value | humanizePercentage }} (threshold: 80%)"
+          
+      # RabbitMQ Publish Failures
+      - alert: RabbitMQPublishFailures
+        expr: |
+          rate(swifty_api_rabbitmq_messages_published_total{status="error"}[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: swifty-api
+        annotations:
+          summary: "RabbitMQ publish failures detected"
+          description: "Failed to publish {{ $value }} messages/sec"
+          
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          (process_resident_memory_bytes / 1024 / 1024) > 512
+        for: 5m
+        labels:
+          severity: warning
+          service: swifty-api
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}MB (threshold: 512MB)"
+          
+      # Service Down
+      - alert: ServiceDown
+        expr: up{job="swifty-api-command"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: swifty-api
+        annotations:
+          summary: "swifty-api is down"
+          description: "The swifty-api service has been down for more than 1 minute"
+          
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: |
+          rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: swifty-api
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value | humanizePercentage }} (threshold: 80%)"
+          
+      # Image Upload Failures
+      - alert: ImageUploadFailures
+        expr: |
+          rate(swifty_api_image_uploads_total{status="failed"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: swifty-api
+        annotations:
+          summary: "High rate of image upload failures"
+          description: "Image upload failure rate: {{ $value }} uploads/sec"
+          
+      # No Requests (Service Idle)
+      - alert: NoTraffic
+        expr: |
+          rate(swifty_api_http_requests_total[5m]) == 0
+        for: 10m
+        labels:
+          severity: info
+          service: swifty-api
+        annotations:
+          summary: "No traffic to swifty-api"
+          description: "The service has received no requests in the last 10 minutes"
+          
+      # Event Loop Lag
+      - alert: HighEventLoopLag
+        expr: |
+          nodejs_eventloop_lag_seconds > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: swifty-api
+        annotations:
+          summary: "High event loop lag detected"
+          description: "Event loop lag is {{ $value }}s (threshold: 100ms)"
+

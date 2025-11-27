@@ -8,6 +8,11 @@ import { DomainEventRepository } from '../../../infrastructure/persistence/repos
 import { logger } from '../../../infrastructure/logger/pino.config.js';
 import { ImageUploadedEvent } from '../../../domain/events/image-uploaded.event.js';
 import { EventPublisher } from '../../../infrastructure/messaging/event-publisher.service.js';
+import {
+  imageUploadsTotal,
+  imageUploadSize,
+  imageProcessingDuration,
+} from '../../../infrastructure/metrics/business.metrics.js';
 
 class RabbitMQWrapper {
   constructor(rabbitmqService) {
@@ -38,6 +43,8 @@ export class ProcessImageUseCase {
   async execute(firebase_uid, imageBuffer, style, fileSize, requestLogger = null) {
     // Use provided logger with trace-id or fallback to global logger
     const log = requestLogger || logger;
+    const processingStartTime = Date.now();
+
     try {
       await this.eventPublisher.init();
 
@@ -196,6 +203,12 @@ export class ProcessImageUseCase {
         'WebSocket notification sent'
       );
 
+      // Registrar métricas de negocio exitosas
+      imageUploadSize.observe({ style }, fileSize);
+      imageUploadsTotal.inc({ style, status: 'success' });
+      const processingDuration = (Date.now() - processingStartTime) / 1000;
+      imageProcessingDuration.observe({ style }, processingDuration);
+
       log.info(
         {
           event: 'image.upload.completed',
@@ -203,6 +216,7 @@ export class ProcessImageUseCase {
           userId: user.uid,
           status: 'processing',
           style,
+          duration: processingDuration * 1000,
         },
         'Image upload completed successfully'
       );
@@ -216,6 +230,8 @@ export class ProcessImageUseCase {
         style: savedImage.style,
       };
     } catch (error) {
+      // Registrar métricas de negocio fallidas
+      imageUploadsTotal.inc({ style, status: 'failed' });
       log.error(
         {
           event: 'image.upload.failed',
